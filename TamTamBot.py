@@ -3,6 +3,8 @@ import logging
 import sys
 from time import sleep
 
+import six
+
 from .cls.ChatExt import ChatExt
 from .cls.UpdateCmn import UpdateCmn
 from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
@@ -16,6 +18,23 @@ from openapi_client.rest import ApiException
 
 class TamTamBot(object):
     def __init__(self):
+        # Общие нстройки - логирование, кодировка и т.п.
+        # noinspection SpellCheckingInspection
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
+        self.lgz = logging.getLogger('%s' % self.__class__.__name__)
+        self.lgz.setLevel(logging.DEBUG)
+
+        fh = logging.FileHandler("../log/bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
+        fh.setFormatter(formatter)
+        self.lgz.addHandler(fh)
+
+        sh = logging.StreamHandler(stream=sys.stdout)
+        sh.setFormatter(formatter)
+        self.lgz.addHandler(sh)
+
+        self.set_encoding_for_p2()
+
+        # Собственные настройки бота
         self.conf = Configuration()
         self.conf.api_key['access_token'] = self.token
 
@@ -34,33 +53,19 @@ class TamTamBot(object):
         if isinstance(self.info, UserWithPhoto):
             self.user_id = self.info.user_id
 
-        self.main_menu_title = u'Возможности:'
+        self.about = 'Это самый крутой бот в мире, но пока ничего не умеет. Для вызова меню наберите /menu.'
+        self.main_menu_title = 'Возможности:'
         self.main_menu_buttons = [
-            [CallbackButton(u'О боте', '/start', Intent.POSITIVE)],
-            [CallbackButton(u'Все чаты бота', '/list_all_chats', Intent.POSITIVE)],
-            [LinkButton(u'Документация по API ТамТам-ботов', 'https://dev.tamtam.chat/')],
-            [LinkButton(u'JSON-схема API ТамТам-ботов', 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
-            [RequestContactButton(u'Представитесь?')],
-            [RequestGeoLocationButton(u'Сообщите своё местонахождение?', True)],
+            [CallbackButton('О боте', '/start', Intent.POSITIVE)],
+            [CallbackButton('Все чаты бота', '/list_all_chats', Intent.POSITIVE)],
+            [LinkButton('Документация по API ТамТам-ботов', 'https://dev.tamtam.chat/')],
+            [LinkButton('JSON-схема API ТамТам-ботов', 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
+            [RequestContactButton('Сообщить свои контактные данные')],
+            [RequestGeoLocationButton('Сообщить своё местонахождение', True)],
         ]
         self.stop_polling = False
 
         self.prev_step = {}
-
-        # Настройки логирования
-
-        # noinspection SpellCheckingInspection
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
-        self.lgz = logging.getLogger('%s' % self.__class__.__name__)
-        self.lgz.setLevel(logging.DEBUG)
-
-        fh = logging.FileHandler("../log/bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
-        fh.setFormatter(formatter)
-        self.lgz.addHandler(fh)
-
-        sh = logging.StreamHandler(stream=sys.stdout)
-        sh.setFormatter(formatter)
-        self.lgz.addHandler(sh)
 
     @property
     def debug(self):
@@ -71,6 +76,16 @@ class TamTamBot(object):
     def token(self):
         # type: () -> str
         raise NotImplementedError
+
+    def set_encoding_for_p2(self, encoding='utf8'):
+        if six.PY3:
+            return
+        else:
+            # noinspection PyCompatibility,PyUnresolvedReferences
+            reload(sys)
+            # noinspection PyUnresolvedReferences
+            sys.setdefaultencoding(encoding)
+            self.lgz.info('The default encoding is set to %s' % sys.getdefaultencoding())
 
     @staticmethod
     def add_buttons_to_message_body(message_body, buttons):
@@ -99,7 +114,7 @@ class TamTamBot(object):
             return False
 
         # self.lgz.w('cmd="%s"; user_id=%s' % (cmd, user_id))
-        self.lgz.debug(u'cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
+        self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
         cmd_handler = 'cmd_handler_%s' % update.cmd
         if hasattr(self, cmd_handler):
             handler = getattr(self, cmd_handler)
@@ -109,14 +124,14 @@ class TamTamBot(object):
         elif update.cmd == '-':
             res = False
         else:
-            self.msg.send_message(NewMessageBody(u'"%s" - некорректная команда. Пожалуйста, уточните.' % update.cmd, link=update.link), chat_id=update.chat_id)
+            self.msg.send_message(NewMessageBody('"%s" - некорректная команда. Пожалуйста, уточните.' % update.cmd, link=update.link), chat_id=update.chat_id)
             res = False
         return res
 
     def cmd_handler_start(self, update):
         # type: (UpdateCmn) -> bool
         return bool(
-            self.msg.send_message(NewMessageBody(u'Это самый крутой бот в мире, но пока ничего не умеет. Для вызова меню наберите /menu.', link=update.link), chat_id=update.chat_id)
+            self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
         )
 
     def cmd_handler_menu(self, update):
@@ -132,18 +147,18 @@ class TamTamBot(object):
             return False
         if not update.chat_id:
             return False
-        self.lgz.debug(u'update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
+        self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
 
         chats_available = self.get_users_chats_with_bot(update.user_id)
         list_c = []
         for chat_id, chat_ext in chats_available.items():
             chat = chat_ext.chat
-            list_c.append(u'Тип: %s; Название: %s; Участников: %s; Права: %s\n' % (ChatExt.chat_type(chat.type), chat.title, chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
+            list_c.append('Тип: %s; Название: %s; Участников: %s; Права: %s\n' % (ChatExt.chat_type(chat.type), chat.title, chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
 
         if not list_c:
-            chs = u'Чатов не найдено.'
+            chs = 'Чатов не найдено.'
         else:
-            chs = u'Бот подключен к чатам:\n' + (u'\n'.join(list_c))
+            chs = 'Бот подключен к чатам:\n' + (u'\n'.join(list_c))
         mb = NewMessageBody(chs, link=update.link)
         return bool(
             self.msg.send_message(mb, user_id=update.user_id)
@@ -161,24 +176,24 @@ class TamTamBot(object):
         while not self.stop_polling:
             # noinspection PyBroadException
             try:
-                self.lgz.debug(u'Запрос обновлений')
+                self.lgz.debug('Запрос обновлений')
                 ul = self.update_list
-                self.lgz.debug(u'Запрос обновлений завершён')
+                self.lgz.debug('Запрос обновлений завершён')
                 if ul.updates:
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
                         self.handle_update(update)
                 else:
-                    self.lgz.debug(u'Событий не было...')
-                self.lgz.debug(u'Приостановка на %s секунд' % self.sleep_time)
+                    self.lgz.debug('Событий не было...')
+                self.lgz.debug('Приостановка на %s секунд' % self.sleep_time)
                 sleep(self.sleep_time)
 
             except ApiException as err:
                 if str(err.body).lower().find('Invalid access_token'):
                     raise
             except Exception:
-                self.lgz.exception(u'Exception')
+                self.lgz.exception('Exception')
                 # raise
 
     def handle_update(self, update):
@@ -284,7 +299,7 @@ class TamTamBot(object):
         chat_list = self.chats.get_chats()
         if isinstance(chat_list, ChatList):
             for chat in chat_list.chats:
-                self.lgz.debug(u'found chat_id=%s; Тип: %s; Статус: %s; Название: %s; Участников: %s; Владелец: %s' %
+                self.lgz.debug('Найден чат => chat_id=%s; Тип: %s; Статус: %s; Название: %s; Участников: %s; Владелец: %s' %
                                (chat.chat_id, chat.type, chat.status, chat.title, chat.participants_count, chat.owner_id))
                 if chat.status in [ChatStatus.ACTIVE]:
                     members = None
