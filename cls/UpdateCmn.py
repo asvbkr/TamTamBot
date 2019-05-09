@@ -8,7 +8,7 @@ class UpdateCmn(object):
     def __init__(self, update):
         # type: (Update) -> None
 
-        self.update = update
+        self.update_current = update
         self.update_type = update.update_type
         self.timestamp = update.timestamp
         self.message = None
@@ -19,6 +19,8 @@ class UpdateCmn(object):
         self.user_name = None
         self.chat_id = None
         self.chat_type = None
+        self.is_cmd_response = False
+        self.update_previous = None
 
         if isinstance(update, MessageCallbackUpdate):
             self.cmd = update.callback.payload
@@ -57,3 +59,11 @@ class UpdateCmn(object):
 
         if self.cmd:
             self.cmd = self.cmd[1:]
+
+        self._index = None
+
+    @property
+    def index(self):
+        if not self._index:
+            self._index = '%s_%s' % (self.chat_id, self.user_id)
+        return self._index

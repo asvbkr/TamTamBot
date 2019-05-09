@@ -5,24 +5,21 @@ from time import sleep
 
 import six
 
-from .cls.ChatExt import ChatExt
-from .cls.UpdateCmn import UpdateCmn
 from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
     SendMessageResult, NewMessageBody, CallbackButton, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
     MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
-    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate
-
-# from TamTamBot.utils.logging import Log
+    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink
 from openapi_client.rest import ApiException
+from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 
 
 class TamTamBot(object):
     def __init__(self):
-        # Общие нстройки - логирование, кодировка и т.п.
+        # Общие настройки - логирование, кодировка и т.п.
         # noinspection SpellCheckingInspection
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
         self.lgz = logging.getLogger('%s' % self.__class__.__name__)
-        self.lgz.setLevel(logging.DEBUG)
+        self.lgz.setLevel(self.logging_level)
 
         fh = logging.FileHandler("../log/bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
         fh.setFormatter(formatter)
@@ -70,7 +67,12 @@ class TamTamBot(object):
     @property
     def debug(self):
         # type: () -> bool
-        return True
+        return False
+
+    @property
+    def logging_level(self):
+        # type: () -> int
+        return logging.DEBUG if self.debug else logging.INFO
 
     @property
     def token(self):
@@ -103,6 +105,32 @@ class TamTamBot(object):
         if update.chat_id:
             return self.msg.send_message(self.add_buttons_to_message_body(NewMessageBody(self.main_menu_title), self.main_menu_buttons), chat_id=update.chat_id)
 
+    def get_cmd_handler(self, update):
+        if not isinstance(update, (Update, UpdateCmn)):
+            return False, False
+        if not isinstance(update, UpdateCmn):
+            update = UpdateCmn(update)
+        cmd_handler = 'cmd_handler_%s' % update.cmd
+        if hasattr(self, cmd_handler):
+            return getattr(self, cmd_handler)
+
+    def call_cmd_handler(self, update):
+        handler_exists = False
+        if not isinstance(update, (Update, UpdateCmn)):
+            return False, False
+        if not isinstance(update, UpdateCmn):
+            update = UpdateCmn(update)
+        handler = self.get_cmd_handler(update)
+        if handler:
+            handler_exists = True
+            # noinspection PyCallingNonCallable
+            res = handler(update)
+            if res:
+                self.prev_step['%s_%s' % (update.chat_id, update.user_id)] = (handler, update)
+        else:
+            res = False
+        return handler_exists, res
+
     def process_command(self, update):
         # type: (Update) -> bool
         """
@@ -115,12 +143,13 @@ class TamTamBot(object):
 
         # self.lgz.w('cmd="%s"; user_id=%s' % (cmd, user_id))
         self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
-        cmd_handler = 'cmd_handler_%s' % update.cmd
-        if hasattr(self, cmd_handler):
-            handler = getattr(self, cmd_handler)
-            res = handler(update)
-            if res:
-                self.prev_step[u'%s_%s' % (update.chat_id, update.user_id)] = (update.cmd, update.cmd_args)
+        if update.index in self.prev_step.keys():
+            self.prev_step.pop(update.index)
+        handler_exists, res = self.call_cmd_handler(update)
+        if handler_exists:
+            pass
+        elif update.cmd == '+':
+            res = True
         elif update.cmd == '-':
             res = False
         else:
@@ -130,39 +159,42 @@ class TamTamBot(object):
 
     def cmd_handler_start(self, update):
         # type: (UpdateCmn) -> bool
-        return bool(
-            self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
-        )
+        if not update.is_cmd_response:  # Ответ текстом не ожидается
+            return bool(
+                self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
+            )
 
     def cmd_handler_menu(self, update):
         # type: (UpdateCmn) -> bool
-        return bool(
-            self.view_main_menu(update)
-        )
+        if not update.is_cmd_response:  # Ответ текстом не ожидается
+            return bool(
+                self.view_main_menu(update)
+            )
 
     # Выводит список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
     def cmd_handler_list_all_chats(self, update):
         # type: (UpdateCmn) -> bool
-        if not (update.chat_type in [ChatType.DIALOG]):
-            return False
-        if not update.chat_id:
-            return False
-        self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
+        if not update.is_cmd_response:  # Ответ текстом не ожидается
+            if not (update.chat_type in [ChatType.DIALOG]):
+                return False
+            if not update.chat_id:
+                return False
+            self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
 
-        chats_available = self.get_users_chats_with_bot(update.user_id)
-        list_c = []
-        for chat_id, chat_ext in chats_available.items():
-            chat = chat_ext.chat
-            list_c.append('Тип: %s; Название: %s; Участников: %s; Права: %s\n' % (ChatExt.chat_type(chat.type), chat.title, chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
+            chats_available = self.get_users_chats_with_bot(update.user_id)
+            list_c = []
+            for chat_id, chat_ext in chats_available.items():
+                chat = chat_ext.chat
+                list_c.append('Тип: %s; Название: %s; Участников: %s; Права: %s\n' % (ChatExt.chat_type(chat.type), chat.title, chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
 
-        if not list_c:
-            chs = 'Чатов не найдено.'
-        else:
-            chs = 'Бот подключен к чатам:\n' + (u'\n'.join(list_c))
-        mb = NewMessageBody(chs, link=update.link)
-        return bool(
-            self.msg.send_message(mb, user_id=update.user_id)
-        )
+            if not list_c:
+                chs = 'Чатов не найдено.'
+            else:
+                chs = 'Бот подключен к чатам:\n' + (u'\n'.join(list_c))
+            mb = NewMessageBody(chs, link=update.link)
+            return bool(
+                self.msg.send_message(mb, user_id=update.user_id)
+            )
 
     @property
     def update_list(self):
@@ -176,17 +208,18 @@ class TamTamBot(object):
         while not self.stop_polling:
             # noinspection PyBroadException
             try:
-                self.lgz.debug('Запрос обновлений')
+                self.lgz.info('Запрос обновлений')
                 ul = self.update_list
-                self.lgz.debug('Запрос обновлений завершён')
+                self.lgz.info('Запрос обновлений завершён')
                 if ul.updates:
+                    self.lgz.info('Имеется %s обновлений' % len(ul.updates))
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
                         self.handle_update(update)
                 else:
-                    self.lgz.debug('Событий не было...')
-                self.lgz.debug('Приостановка на %s секунд' % self.sleep_time)
+                    self.lgz.info('Событий не было...')
+                self.lgz.info('Приостановка на %s секунд' % self.sleep_time)
                 sleep(self.sleep_time)
 
             except ApiException as err:
@@ -229,7 +262,18 @@ class TamTamBot(object):
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
-        pass
+        update = UpdateCmn(update)
+        # Проверка на ответ команде
+        if update.index in self.prev_step.keys():
+            (handler, update_previous) = self.prev_step[update.index]
+            if handler and isinstance(update_previous, UpdateCmn):
+                # Если это ответ на вопрос команды, то установить соответствующий признак и снова вызвать команду
+                update.is_cmd_response = True
+                update.update_previous = update_previous.update_current
+                res = handler(update)
+                if res:
+                    self.prev_step.pop(update.index)
+                return res
 
     def handle_message_callback_update(self, update):
         # type: (MessageCallbackUpdate) -> bool
@@ -275,6 +319,7 @@ class TamTamBot(object):
         pass
 
     def get_chat_members(self, chat_id):
+        # type: (int) -> dict
         marker = None
         m_dict = {}
         members = []
@@ -295,6 +340,7 @@ class TamTamBot(object):
 
     # Формирует список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
     def get_users_chats_with_bot(self, user_id):
+        # type: (int) -> dict
         chats_available = {}
         chat_list = self.chats.get_chats()
         if isinstance(chat_list, ChatList):
@@ -316,3 +362,41 @@ class TamTamBot(object):
                             chat_ext.admin_permissions[user_id] = members.get(self.user_id).permissions
                             chats_available[chat.chat_id] = chat_ext
         return chats_available
+
+    def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None):
+        # type: (str, list, int, int, NewMessageLink) -> SendMessageResult
+        if buttons:
+            mb = self.add_buttons_to_message_body(NewMessageBody(title, link=link), buttons)
+        else:
+            mb = NewMessageBody('Доступных элементов не найдено.', link=link)
+        if not (user_id or chat_id):
+            raise TypeError('user_id or chat_id must be defined.')
+        if chat_id:
+            return self.msg.send_message(mb, chat_id=chat_id)
+        else:
+            return self.msg.send_message(mb, user_id=user_id)
+
+    def get_yes_no_buttons(self, cmd_dict):
+        # type: ([{}]) -> list
+        if not cmd_dict:
+            return []
+        return self.get_buttons([
+            CallbackButtonCmd('Да', cmd_dict['yes']['cmd'], cmd_dict['yes']['cmd_args'], Intent.POSITIVE),
+            CallbackButtonCmd('Нет', cmd_dict['no']['cmd'], cmd_dict['no']['cmd_args'], Intent.NEGATIVE),
+        ])
+
+    @staticmethod
+    def get_buttons(cbc, orientation='horizontal'):
+        # type: ([CallbackButtonCmd], str) -> list
+        if not cbc:
+            return []
+        orientation = orientation or 'horizontal'
+        res = []
+        for bt in cbc:
+            res.append(bt)
+        if orientation == 'horizontal':
+            res = [res]
+        else:
+            res = [[_] for _ in res]
+
+        return res

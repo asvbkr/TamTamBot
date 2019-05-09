@@ -4,6 +4,8 @@ import re
 import time
 from datetime import datetime
 
+import six
+
 
 def dt_timestamp(dt):
     return time.mktime(dt.timetuple())
@@ -30,9 +32,22 @@ def calling_function_name(level=2):
     return res_name, res_str_num
 
 
-def get_param_value(content, parameter):
-    # type: (str, str) -> str
+def get_param_value(content, parameter, ends='{}'):
+    # type: (str, str, str) -> str
     # Получение параметра из строки вида: '{{cmd=/street}}'
-    found = re.match('.*({%s=(.+?)}).*' % parameter, content)
+    found = re.match('.*(%s%s=(.+?)%s).*' % ('\\' + ends[0], parameter, '\\' + ends[1]), content)
     if found:
         return found.group(2)
+
+
+def str_to_int(string):
+    value = None
+    try:
+        if six.PY3:
+            value = int(string)
+        else:
+            # noinspection PyCompatibility,PyUnresolvedReferences
+            value = long(string)
+    except ValueError:
+        pass
+    return value
