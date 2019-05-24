@@ -1,15 +1,17 @@
 # -*- coding: UTF-8 -*-
+import json
 import logging
 import sys
 from time import sleep
 
 import six
+import urllib3
 
 from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
     SendMessageResult, NewMessageBody, CallbackButton, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
     MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink
-from openapi_client.rest import ApiException
+from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 
 
@@ -245,6 +247,17 @@ class TamTamBot(object):
             except Exception:
                 self.lgz.exception('Exception')
                 # raise
+
+    def handle_request_body(self, request_body):
+        # type: (bytes) -> None
+        if request_body:
+            self.lgz.debug('request_body: %s' % request_body)
+            data = json.loads(request_body)
+            if data.get('update_type'):
+                incoming_data = self.client.deserialize(RESTResponse(urllib3.HTTPResponse(request_body)), Update.discriminator_value_class_map.get(data.get('update_type')))
+                self.lgz.debug('incoming data:\n type=%s;\n data=%s' % (type(incoming_data), incoming_data))
+                if isinstance(incoming_data, Update):
+                    self.handle_update(incoming_data)
 
     def handle_update(self, update):
         # type: (Update) -> bool
