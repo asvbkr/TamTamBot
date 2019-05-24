@@ -13,15 +13,20 @@ from openapi_client.rest import ApiException
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 
 
+class TamTamBotException(Exception):
+    pass
+
+
 class TamTamBot(object):
     def __init__(self):
         # Общие настройки - логирование, кодировка и т.п.
+        self._debug = None
+        self._logging_level = None
         # noinspection SpellCheckingInspection
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(name)s[%(threadName)s-%(thread)d] - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
         self.lgz = logging.getLogger('%s' % self.__class__.__name__)
-        self.lgz.setLevel(self.logging_level)
 
-        fh = logging.FileHandler("../log/bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
+        fh = logging.FileHandler("bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
         fh.setFormatter(formatter)
         self.lgz.addHandler(fh)
 
@@ -35,8 +40,7 @@ class TamTamBot(object):
         self.conf = Configuration()
         self.conf.api_key['access_token'] = self.token
 
-        self.conf.debug = self.debug
-        self.sleep_time = 5
+        self.polling_sleep_time = 5
 
         self.client = ApiClient(self.conf)
 
@@ -64,15 +68,28 @@ class TamTamBot(object):
 
         self.prev_step = {}
 
+        self.debug = False
+        self.logging_level = logging.DEBUG if self.debug else logging.INFO
+
     @property
     def debug(self):
         # type: () -> bool
-        return False
+        return self._debug
+
+    @debug.setter
+    def debug(self, val):
+        self._debug = val
+        self.conf.debug = self._debug
 
     @property
     def logging_level(self):
         # type: () -> int
-        return logging.DEBUG if self.debug else logging.INFO
+        return self._logging_level
+
+    @logging_level.setter
+    def logging_level(self, val):
+        self._logging_level = val
+        self.lgz.setLevel(self._logging_level)
 
     @property
     def token(self):
@@ -219,8 +236,8 @@ class TamTamBot(object):
                         self.handle_update(update)
                 else:
                     self.lgz.info('Событий не было...')
-                self.lgz.info('Приостановка на %s секунд' % self.sleep_time)
-                sleep(self.sleep_time)
+                self.lgz.info('Приостановка на %s секунд' % self.polling_sleep_time)
+                sleep(self.polling_sleep_time)
 
             except ApiException as err:
                 if str(err.body).lower().find('Invalid access_token'):
