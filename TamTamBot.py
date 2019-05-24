@@ -248,6 +248,7 @@ class TamTamBot(object):
                 self.lgz.exception('Exception')
                 # raise
 
+    # Обработка тела запроса
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
         if request_body:
