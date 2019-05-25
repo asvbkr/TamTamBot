@@ -204,7 +204,7 @@ class TamTamBot(object):
             list_c = []
             for chat_id, chat_ext in chats_available.items():
                 chat = chat_ext.chat
-                list_c.append('Тип: %s; Название: %s; Участников: %s; Права: %s\n' % (ChatExt.chat_type(chat.type), chat.title, chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
+                list_c.append('%s: тип: %s; участников: %s; права: %s\n' % (chat_ext.title, ChatExt.chat_type(chat.type), chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
 
             if not list_c:
                 chs = 'Чатов не найдено.'
