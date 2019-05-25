@@ -252,7 +252,7 @@ class TamTamBot(object):
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
         if request_body:
-            self.lgz.debug('request_body: %s' % request_body)
+            self.lgz.debug('request body:\n%s\n%s' % (request_body, request_body.decode('utf-8')))
             data = json.loads(request_body)
             if data.get('update_type'):
                 incoming_data = self.client.deserialize(RESTResponse(urllib3.HTTPResponse(request_body)), Update.discriminator_value_class_map.get(data.get('update_type')))
