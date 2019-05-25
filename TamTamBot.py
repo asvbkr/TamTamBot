@@ -224,21 +224,25 @@ class TamTamBot(object):
         return self.subscriptions.get_updates(types=Update.update_types)
 
     def polling(self):
+        self.lgz.info('Старт. Для остановки нажмите Ctrl-Break')
         while not self.stop_polling:
             # noinspection PyBroadException
             try:
-                self.lgz.info('Запрос обновлений')
+                self.before_polling_update_list()
+                self.lgz.debug('Запрос обновлений')
                 ul = self.update_list
-                self.lgz.info('Запрос обновлений завершён')
+                self.lgz.debug('Запрос обновлений завершён')
                 if ul.updates:
+                    self.after_polling_update_list(True)
                     self.lgz.info('Имеется %s обновлений' % len(ul.updates))
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
                         self.handle_update(update)
                 else:
-                    self.lgz.info('Событий не было...')
-                self.lgz.info('Приостановка на %s секунд' % self.polling_sleep_time)
+                    self.after_polling_update_list()
+                    self.lgz.debug('Событий не было...')
+                self.lgz.debug('Приостановка на %s секунд' % self.polling_sleep_time)
                 sleep(self.polling_sleep_time)
 
             except ApiException as err:
@@ -247,6 +251,14 @@ class TamTamBot(object):
             except Exception:
                 self.lgz.exception('Exception')
                 # raise
+        self.lgz.info('Стоп')
+
+    def before_polling_update_list(self):
+        pass
+
+    def after_polling_update_list(self, updated=False):
+        # type: (bool) -> None
+        pass
 
     # Обработка тела запроса
     def handle_request_body(self, request_body):
@@ -262,6 +274,7 @@ class TamTamBot(object):
 
     def handle_update(self, update):
         # type: (Update) -> bool
+        self.before_handle_update(update)
         cmd_prefix = '@%s /' % self.info.username
         if isinstance(update, MessageCreatedUpdate) and (update.message.body.text.startswith('/') or update.message.body.text.startswith(cmd_prefix)):
             if update.message.body.text.startswith(cmd_prefix):
@@ -289,7 +302,16 @@ class TamTamBot(object):
             res = self.handle_chat_title_changed_update(update)
         else:
             res = False
+        self.after_handle_update(update)
         return res
+
+    def before_handle_update(self, update):
+        # type: (Update) -> None
+        pass
+
+    def after_handle_update(self, update):
+        # type: (Update) -> None
+        pass
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
