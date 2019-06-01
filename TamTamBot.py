@@ -2,6 +2,7 @@
 import json
 import logging
 import sys
+from django.utils.translation import gettext as _
 from time import sleep
 
 import six
@@ -55,16 +56,24 @@ class TamTamBot(object):
         self.info = self.api.get_my_info()
         if isinstance(self.info, UserWithPhoto):
             self.user_id = self.info.user_id
+            self.name = self.info.name
+            self.username = self.info.username
+            self.title = _('bot @%(username)s (%(name)s)') % {'username': self.username, 'name': self.name}
+        else:
+            self.user_id = None
+            self.name = None
+            self.username = None
+            self.title = None
 
-        self.about = 'Это самый крутой бот в мире, но пока ничего не умеет. Для вызова меню наберите /menu.'
-        self.main_menu_title = 'Возможности:'
+        self.about = _('This is the coolest bot in the world, but so far can not do anything. To open the menu, type /menu.')
+        self.main_menu_title = _('Abilities:')
         self.main_menu_buttons = [
-            [CallbackButton('О боте', '/start', Intent.POSITIVE)],
-            [CallbackButton('Все чаты бота', '/list_all_chats', Intent.POSITIVE)],
-            [LinkButton('Документация по API ТамТам-ботов', 'https://dev.tamtam.chat/')],
-            [LinkButton('JSON-схема API ТамТам-ботов', 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
-            [RequestContactButton('Сообщить свои контактные данные')],
-            [RequestGeoLocationButton('Сообщить своё местонахождение', True)],
+            [CallbackButton(_('About bot'), '/start', Intent.POSITIVE)],
+            [CallbackButton(_('All chat bots'), '/list_all_chats', Intent.POSITIVE)],
+            [LinkButton(_('API documentation for TamTam-bots'), 'https://dev.tamtam.chat/')],
+            [LinkButton(_('JSON Diagram API TamTam Bots'), 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
+            [RequestContactButton(_('Report your contact details'))],
+            [RequestGeoLocationButton(_('Report your location'), True)],
         ]
         self.stop_polling = False
 
@@ -124,6 +133,18 @@ class TamTamBot(object):
         if update.chat_id:
             return self.msg.send_message(self.add_buttons_to_message_body(NewMessageBody(self.main_menu_title), self.main_menu_buttons), chat_id=update.chat_id)
 
+    def get_buttons_for_chats_available(self, user_id, chat_id, cmd):
+        # type: (int, int, str) -> [[CallbackButtonCmd]]
+        buttons = []
+        chats_available = self.get_users_chats_with_bot(user_id, chat_id)
+        for chat in chats_available.values():
+            buttons.append([CallbackButtonCmd(chat.chat_name, cmd, chat.chat.chat_id, Intent.DEFAULT)])
+        return buttons
+
+    def view_buttons_for_chats_available(self, title, cmd, user_id, chat_id):
+        # type: (str, str, int, int) -> SendMessageResult
+        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, chat_id, cmd), user_id)
+
     def get_cmd_handler(self, update):
         if not isinstance(update, (Update, UpdateCmn)):
             return False, False
@@ -172,7 +193,7 @@ class TamTamBot(object):
         elif update.cmd == '-':
             res = False
         else:
-            self.msg.send_message(NewMessageBody('"%s" - некорректная команда. Пожалуйста, уточните.' % update.cmd, link=update.link), chat_id=update.chat_id)
+            self.msg.send_message(NewMessageBody(_('"%s" is an incorrect command. Please specify.') % update.cmd, link=update.link), chat_id=update.chat_id)
             res = False
         return res
 
@@ -200,16 +221,17 @@ class TamTamBot(object):
                 return False
             self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
 
-            chats_available = self.get_users_chats_with_bot(update.user_id)
+            chats_available = self.get_users_chats_with_bot(update.user_id, update.chat_id)
             list_c = []
             for chat_id, chat_ext in chats_available.items():
                 chat = chat_ext.chat
-                list_c.append('%s: тип: %s; участников: %s; права: %s\n' % (chat_ext.title, ChatExt.chat_type(chat.type), chat.participants_count, chat_ext.admin_permissions.get(self.user_id)))
+                list_c.append(_('%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n') %
+                              {'chat_name': chat_ext.chat_name, 'participants': chat.participants_count, 'permissions': chat_ext.admin_permissions.get(self.user_id)})
 
             if not list_c:
-                chs = 'Чатов не найдено.'
+                chs = _('Chats not found.')
             else:
-                chs = 'Бот подключен к чатам:\n' + (u'\n'.join(list_c))
+                chs = _('Bot connected to the chat:\n\n') + (u'\n'.join(list_c))
             mb = NewMessageBody(chs, link=update.link)
             return bool(
                 self.msg.send_message(mb, user_id=update.user_id)
@@ -224,25 +246,25 @@ class TamTamBot(object):
         return self.subscriptions.get_updates(types=Update.update_types)
 
     def polling(self):
-        self.lgz.info('Старт. Для остановки нажмите Ctrl-Break')
+        self.lgz.info(_('Start. Press Ctrl-Break for stopping.'))
         while not self.stop_polling:
             # noinspection PyBroadException
             try:
                 self.before_polling_update_list()
-                self.lgz.debug('Запрос обновлений')
+                self.lgz.debug(_('Update request'))
                 ul = self.update_list
-                self.lgz.debug('Запрос обновлений завершён')
+                self.lgz.debug(_('Update request completed'))
                 if ul.updates:
                     self.after_polling_update_list(True)
-                    self.lgz.info('Имеется %s обновлений' % len(ul.updates))
+                    self.lgz.info(_('There are %s updates') % len(ul.updates))
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
                         self.handle_update(update)
                 else:
                     self.after_polling_update_list()
-                    self.lgz.debug('Событий не было...')
-                self.lgz.debug('Приостановка на %s секунд' % self.polling_sleep_time)
+                    self.lgz.debug(_('No updates...'))
+                self.lgz.debug(_('Pause for %s seconds') % self.polling_sleep_time)
                 sleep(self.polling_sleep_time)
 
             except ApiException as err:
@@ -251,7 +273,7 @@ class TamTamBot(object):
             except Exception:
                 self.lgz.exception('Exception')
                 # raise
-        self.lgz.info('Стоп')
+        self.lgz.info(_('Stopping'))
 
     def before_polling_update_list(self):
         pass
@@ -406,28 +428,41 @@ class TamTamBot(object):
         return m_dict
 
     # Формирует список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
-    def get_users_chats_with_bot(self, user_id):
-        # type: (int) -> dict
+    def get_users_chats_with_bot(self, user_id, chat_id):
+        # type: (int, int) -> dict
+        marker = None
         chats_available = {}
-        chat_list = self.chats.get_chats()
-        if isinstance(chat_list, ChatList):
-            for chat in chat_list.chats:
-                self.lgz.debug('Найден чат => chat_id=%s; Тип: %s; Статус: %s; Название: %s; Участников: %s; Владелец: %s' %
-                               (chat.chat_id, chat.type, chat.status, chat.title, chat.participants_count, chat.owner_id))
-                if chat.status in [ChatStatus.ACTIVE]:
-                    members = None
-                    try:
-                        members = self.get_chat_members(chat.chat_id)
-                    except ApiException as err:
-                        if not str(err.body).lower().find('User is not admin'):
-                            raise
-                    if members:
-                        chat_ext = ChatExt(chat)
-                        chat_ext.admin_permissions[self.user_id] = members.get(self.user_id).permissions
-                        current_user = members and members.get(user_id)
-                        if current_user and current_user.is_admin:
-                            chat_ext.admin_permissions[user_id] = members.get(self.user_id).permissions
-                            chats_available[chat.chat_id] = chat_ext
+        while True:
+            if marker:
+                chat_list = self.chats.get_chats(marker=marker)
+            else:
+                chat_list = self.chats.get_chats()
+            if isinstance(chat_list, ChatList):
+                marker = chat_list.marker
+                for chat in chat_list.chats:
+                    self.lgz.debug(_('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s') %
+                                   {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
+                    if chat.status in [ChatStatus.ACTIVE]:
+                        members = None
+                        try:
+                            if chat.type != ChatType.DIALOG:
+                                members = self.get_chat_members(chat.chat_id)
+                        except ApiException as err:
+                            if str(err.body).lower().find('User is not admin') < 0:
+                                raise
+                        if members or chat.type == ChatType.DIALOG:
+                            chat_ext = ChatExt(chat, self.title)
+                            if members and chat.type != ChatType.DIALOG:
+                                # chat_ext.admin_permissions[self.user_id] = members.get(self.user_id).permissions
+                                current_user = members and members.get(user_id)
+                                if current_user and current_user.is_admin:
+                                    chat_ext.admin_permissions[user_id] = members.get(self.user_id).permissions
+                            elif chat.type == ChatType.DIALOG and chat_ext.chat.chat_id == chat_id:
+                                chat_ext.admin_permissions[self.user_id] = ['write', 'read_all_messages']
+                            if chat_ext.admin_permissions:
+                                chats_available[chat.chat_id] = chat_ext
+                if not marker:
+                    break
         return chats_available
 
     def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None):
@@ -435,7 +470,7 @@ class TamTamBot(object):
         if buttons:
             mb = self.add_buttons_to_message_body(NewMessageBody(title, link=link), buttons)
         else:
-            mb = NewMessageBody('Доступных элементов не найдено.', link=link)
+            mb = NewMessageBody(_('No available items found.'), link=link)
         if not (user_id or chat_id):
             raise TypeError('user_id or chat_id must be defined.')
         if chat_id:
@@ -448,8 +483,8 @@ class TamTamBot(object):
         if not cmd_dict:
             return []
         return self.get_buttons([
-            CallbackButtonCmd('Да', cmd_dict['yes']['cmd'], cmd_dict['yes']['cmd_args'], Intent.POSITIVE),
-            CallbackButtonCmd('Нет', cmd_dict['no']['cmd'], cmd_dict['no']['cmd_args'], Intent.NEGATIVE),
+            CallbackButtonCmd(_('Yes'), cmd_dict['yes']['cmd'], cmd_dict['yes']['cmd_args'], Intent.POSITIVE),
+            CallbackButtonCmd(_('No'), cmd_dict['no']['cmd'], cmd_dict['no']['cmd_args'], Intent.NEGATIVE),
         ])
 
     @staticmethod
