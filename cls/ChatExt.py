@@ -7,6 +7,10 @@ class ChatExt(object):
     def __init__(self, chat, this_dialog_name):
         # type: (Chat, str) -> None
         self.chat = chat
+        if chat:
+            self.chat_id = chat.chat_id
+        else:
+            self.chat_id = None
         self.this_dialog_name = this_dialog_name
         self.admin_permissions = {}
 
@@ -37,3 +41,21 @@ class ChatExt(object):
             "channel": _('channel'),
         }
         return types[key]
+
+    def __eq__(self, other):
+        return self.chat_name == other.chat_name
+
+    def __ne__(self, other):
+        return self.chat_name != other.chat_name
+
+    def __gt__(self, other):
+        return self.chat_name > other.chat_name
+
+    def __lt__(self, other):
+        return self.chat_name < other.chat_name
+
+    def __ge__(self, other):
+        return self.chat_name >= other.chat_name
+
+    def __le__(self, other):
+        return self.chat_name <= other.chat_name

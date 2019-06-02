@@ -137,7 +137,7 @@ class TamTamBot(object):
         # type: (int, int, str) -> [[CallbackButtonCmd]]
         buttons = []
         chats_available = self.get_users_chats_with_bot(user_id, chat_id)
-        for chat in chats_available.values():
+        for chat in sorted(chats_available.values()):
             buttons.append([CallbackButtonCmd(chat.chat_name, cmd, chat.chat.chat_id, Intent.DEFAULT)])
         return buttons
 
@@ -223,10 +223,9 @@ class TamTamBot(object):
 
             chats_available = self.get_users_chats_with_bot(update.user_id, update.chat_id)
             list_c = []
-            for chat_id, chat_ext in chats_available.items():
-                chat = chat_ext.chat
+            for chat_ext in sorted(chats_available.values()):
                 list_c.append(_('%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n') %
-                              {'chat_name': chat_ext.chat_name, 'participants': chat.participants_count, 'permissions': chat_ext.admin_permissions.get(self.user_id)})
+                              {'chat_name': chat_ext.chat_name, 'participants': chat_ext.chat.participants_count, 'permissions': chat_ext.admin_permissions.get(self.user_id)})
 
             if not list_c:
                 chs = _('Chats not found.')
