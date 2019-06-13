@@ -48,6 +48,8 @@ def str_to_int(string, default=None):
         else:
             # noinspection PyCompatibility,PyUnresolvedReferences
             value = long(string)
+    except TypeError:
+        pass
     except ValueError:
         pass
     return value
