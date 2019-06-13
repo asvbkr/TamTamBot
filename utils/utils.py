@@ -40,8 +40,8 @@ def get_param_value(content, parameter, ends='{}'):
         return found.group(2)
 
 
-def str_to_int(string):
-    value = None
+def str_to_int(string, default=None):
+    value = default
     try:
         if six.PY3:
             value = int(string)
@@ -51,3 +51,29 @@ def str_to_int(string):
     except ValueError:
         pass
     return value
+
+
+def int_str_to_bool(string, default=False):
+    value = default
+    if string is not None:
+        int_str = str_to_int(string.strip())
+        if string and int_str:
+            value = bool(int_str)
+
+    return value
+
+
+class ExtList(list):
+    def __init__(self, no_double=False):
+        self.no_double = no_double
+        super(ExtList, self).__init__()
+
+    def append(self, obj):
+        if not self.no_double or not (obj in self):
+            super(ExtList, self).append(obj)
+
+    def get(self, index):
+        try:
+            return self[index]
+        except IndexError:
+            pass

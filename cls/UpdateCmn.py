@@ -15,8 +15,10 @@ class UpdateCmn(object):
         self.cmd = None
         self.cmd_args = None
         self.link = None
+        self.user = None
         self.user_id = None
         self.user_name = None
+        self.user_id_recipient = None
         self.chat_id = None
         self.chat_type = None
         self.is_cmd_response = False
@@ -35,24 +37,40 @@ class UpdateCmn(object):
             if fk:
                 self.cmd_args = fk
             self.chat_id = update.message.recipient.chat_id
+            self.user = update.callback.user
             self.user_id = update.callback.user.user_id
             self.user_name = update.callback.user.name
             self.chat_type = update.message.recipient.chat_type
         elif isinstance(update, MessageCreatedUpdate):
             self.cmd = update.message.body.text
             self.link = NewMessageLink(MessageLinkType.REPLY, update.message.body.mid)
-            self.chat_id = update.message.recipient.chat_id
+            if update.message.recipient:
+                self.chat_id = update.message.recipient.chat_id
+                self.chat_type = update.message.recipient.chat_type
+                self.user_id_recipient = update.message.recipient.user_id
             if update.message.sender:
+                self.user = update.message.sender
                 self.user_id = update.message.sender.user_id
                 self.user_name = update.message.sender.name
-            self.chat_type = update.message.recipient.chat_type
         elif isinstance(update, BotStartedUpdate):
             self.cmd = '/start'
             self.link = None
-            self.chat_id = update.chat_id
-            self.user_id = update.user_id
             self.user_name = None
             self.chat_type = ChatType.DIALOG
+
+        if self.user is None:
+            if hasattr(update, 'user'):
+                self.user = update.user
+            elif hasattr(update, 'sender'):
+                self.user = update.message.sender
+
+        if self.chat_id is None:
+            if hasattr(update, 'chat_id'):
+                self.chat_id = update.chat_id
+
+        if self.user_id is None:
+            if hasattr(update, 'user_id'):
+                self.user_id = update.user_id
 
         if hasattr(update, 'message'):
             self.message = update.message

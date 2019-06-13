@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-06-07 15:45+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: .\TamTamBot.py:79
+#, python-format
+msgid "bot @%(username)s (%(name)s)"
+msgstr ""
+
+#: .\TamTamBot.py:86
+msgid ""
+"This is the coolest bot in the world, but so far can not do anything. To "
+"open the menu, type /menu."
+msgstr ""
+
+#: .\TamTamBot.py:87
+msgid "Abilities:"
+msgstr ""
+
+#: .\TamTamBot.py:89
+msgid "About bot"
+msgstr ""
+
+#: .\TamTamBot.py:90
+msgid "All chat bots"
+msgstr ""
+
+#: .\TamTamBot.py:91
+msgid "API documentation for TamTam-bots"
+msgstr ""
+
+#: .\TamTamBot.py:92
+msgid "JSON Diagram API TamTam Bots"
+msgstr ""
+
+#: .\TamTamBot.py:93
+msgid "Report your contact details"
+msgstr ""
+
+#: .\TamTamBot.py:94
+msgid "Report your location"
+msgstr ""
+
+#: .\TamTamBot.py:230
+#, python-format
+msgid "\"%s\" is an incorrect command. Please specify."
+msgstr ""
+
+#: .\TamTamBot.py:234
+#, python-format
+msgid "Your request (%s) cannot be completed at this time. Try again later."
+msgstr ""
+
+#: .\TamTamBot.py:264
+#, python-format
+msgid ""
+"%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n"
+msgstr ""
+
+#: .\TamTamBot.py:268
+msgid "Chats not found."
+msgstr ""
+
+#: .\TamTamBot.py:270
+msgid ""
+"Bot connected to the chat:\n"
+"\n"
+msgstr ""
+
+#: .\TamTamBot.py:545
+msgid "No available items found."
+msgstr ""
+
+#: .\TamTamBot.py:558
+msgid "Yes"
+msgstr ""
+
+#: .\TamTamBot.py:559
+msgid "No"
+msgstr ""
+
+#: .\cls\ChatExt.py:31
+#, python-format
+msgid "current bot (№%s)"
+msgstr ""
+
+#: .\cls\ChatExt.py:39
+msgid "dialog"
+msgstr ""
+
+#: .\cls\ChatExt.py:40
+msgid "chat"
+msgstr ""
+
+#: .\cls\ChatExt.py:41
+msgid "channel"
+msgstr ""

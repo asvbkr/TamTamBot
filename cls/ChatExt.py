@@ -59,3 +59,6 @@ class ChatExt(object):
 
     def __le__(self, other):
         return self.chat_name <= other.chat_name
+
+    def __str__(self):
+        return '%s: %s' % (self.chat_name, self.chat)
