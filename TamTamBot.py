@@ -6,7 +6,6 @@ import sqlite3
 import sys
 from threading import Thread
 
-from django.utils.translation import gettext as _
 from time import sleep
 
 import six
@@ -18,6 +17,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
+from .utils.lng import get_text as _, translation_activate
 
 
 class TamTamBotException(Exception):
@@ -67,6 +67,8 @@ class TamTamBot(object):
         self.chats = ChatsApi(self.client)
         self.upload = UploadApi(self.client)
 
+        self._languages_dict = None
+
         self.info = None
         try:
             self.info = self.api.get_my_info()
@@ -84,9 +86,26 @@ class TamTamBot(object):
             self.username = None
             self.title = None
 
-        self.about = _('This is the coolest bot in the world, but so far can not do anything. To open the menu, type /menu.')
-        self.main_menu_title = _('Abilities:')
-        self.main_menu_buttons = [
+        self.stop_polling = False
+
+        self.prev_step_table_name = 'tamtambot_prev_step'
+        self.user_prop_table_name = 'tamtambot_user_prop'
+        self.db_prepare()
+
+    @property
+    def about(self):
+        # type: () -> str
+        return _('This is the coolest bot in the world, but so far can not do anything. To open the menu, type /menu.')
+
+    @property
+    def main_menu_title(self):
+        # type: () -> str
+        return _('Abilities:')
+
+    @property
+    def main_menu_buttons(self):
+        # type: () -> []
+        buttons = [
             [CallbackButton(_('About bot'), '/start', Intent.POSITIVE)],
             [CallbackButton(_('All chat bots'), '/list_all_chats', Intent.POSITIVE)],
             [LinkButton(_('API documentation for TamTam-bots'), 'https://dev.tamtam.chat/')],
@@ -94,10 +113,70 @@ class TamTamBot(object):
             [RequestContactButton(_('Report your contact details'))],
             [RequestGeoLocationButton(_('Report your location'), True)],
         ]
-        self.stop_polling = False
+        if len(self.languages_dict) > 1:
+            buttons.append([CallbackButton('Изменить язык / set language', '/set_language', Intent.DEFAULT)])
 
-        self.prev_step_table_name = 'tamtambot_prev_step'
-        self.db_prepare()
+        return buttons
+
+    @property
+    def languages_dict(self):
+        if self._languages_dict is None:
+            self._languages_dict = {}
+            l_fe = os.environ.get('LANGUAGES', 'ru=Русский:en=English')
+            l_l = l_fe.split(':')
+            for l_c in l_l:
+                l_r = l_c.split('=')
+                if len(l_r) == 2:
+                    self._languages_dict[l_r[0]] = l_r[1]
+            if not self._languages_dict:
+                self._languages_dict = {'ru': 'Русский', 'en': 'English'}
+        return self._languages_dict
+
+    def get_default_language(self):
+        return list(self.languages_dict.keys())[0]
+
+    def get_user_language_by_update(self, update):
+        # type: (Update) -> str
+        language = self.get_default_language()
+        update = UpdateCmn(update)
+        if update:
+            cursor = self.conn_srv.cursor()
+            # noinspection SqlResolve
+            cursor.execute(
+                'SELECT [language] FROM %(table)s WHERE [user_id]=:user_id' %
+                {'table': self.user_prop_table_name}, {'user_id': update.user_id})
+            row = cursor.fetchone()
+            cursor.close()
+            if row:
+                language = row[0] or self.get_default_language()
+                self.lgz.debug(' -> update.user_id=%s -> language: "%s"' % (update.user_id, language))
+        return language
+
+    def set_user_language_by_update(self, update, language):
+        # type: (Update, str) -> None
+        language = language or self.get_default_language()
+        update = UpdateCmn(update)
+        if update:
+            cursor = self.conn_srv.cursor()
+            # noinspection SqlResolve
+            cursor.execute(
+                'SELECT COUNT([language]) FROM %(table)s WHERE [user_id]=:user_id' %
+                {'table': self.user_prop_table_name}, {'user_id': update.user_id})
+            row = cursor.fetchone()
+
+            if row[0] > 0:
+                # noinspection SqlResolve
+                cursor.execute(
+                    'UPDATE %(table)s SET [language] = :language WHERE [user_id]=:user_id' %
+                    {'table': self.user_prop_table_name}, {'language': language, 'user_id': update.user_id})
+            else:
+                # noinspection SqlResolve
+                cursor.execute(
+                    'INSERT INTO %(table)s ([user_id], [language]) VALUES (:user_id, :language)' %
+                    {'table': self.user_prop_table_name}, {'language': language, 'user_id': update.user_id})
+            cursor.connection.commit()
+            cursor.close()
+            self.lgz.debug(' -> update.user_id=%s -> language: "%s"' % (update.user_id, language))
 
     @property
     def trace_requests(self):
@@ -143,9 +222,13 @@ class TamTamBot(object):
             CREATE TABLE IF NOT EXISTS %s (
                 [index]  CHAR (64) PRIMARY KEY,
                 [update] TEXT      NOT NULL
-            )        
-        ''' % self.prev_step_table_name
-        self.conn_srv.cursor().execute(sql_s)
+            );        
+            CREATE TABLE IF NOT EXISTS %s (
+                [user_id]  INT     PRIMARY KEY,
+                [language] CHAR (10)
+            );        
+        ''' % (self.prev_step_table_name, self.user_prop_table_name)
+        self.conn_srv.cursor().executescript(sql_s)
 
     @staticmethod
     def add_buttons_to_message_body(message_body, buttons):
@@ -281,6 +364,37 @@ class TamTamBot(object):
                 self.view_main_menu(update)
             )
 
+    # Обработка команды смены языка
+    def cmd_handler_set_language(self, update):
+        # type: (UpdateCmn) -> bool
+        if not (update.chat_type in [ChatType.DIALOG]):
+            return False
+        if not update.chat_id:
+            return False
+
+        if len(self.languages_dict) <= 1:
+            return False
+
+        self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s, update.is_cmd_response=%s' % (
+            update.chat_id, update.user_id, update.user_name, update.is_cmd_response))
+
+        languages = []
+
+        for k, v in self.languages_dict.items():
+            languages.append(CallbackButtonCmd(v, 'set_language', k, Intent.DEFAULT))
+        if not update.is_cmd_response:  # Обработка самой команды
+            if not update.cmd_args:
+                buttons = self.get_buttons(languages, 'vertical')
+                return bool(
+                    self.view_buttons('Выберите язык бота (select bot language):', buttons, chat_id=update.chat_id, link=update.link)
+                )
+            else:
+                lc = update.cmd_args
+                self.set_user_language_by_update(update.update_current, lc)
+                return bool(
+                    self.msg.send_message(NewMessageBody('Установлен язык бота (bot language configured): %s' % self.languages_dict[lc], link=update.link), chat_id=update.chat_id)
+                )
+
     # Выводит список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
     def cmd_handler_list_all_chats(self, update):
         # type: (UpdateCmn) -> bool
@@ -407,6 +521,8 @@ class TamTamBot(object):
     def handle_update(self, update):
         # type: (Update) -> bool
         self.lgz.debug(' -> %s' % type(update))
+        language = self.get_user_language_by_update(update)
+        translation_activate(language)
         self.before_handle_update(update)
         cmd_prefix = '@%s /' % self.info.username
         if isinstance(update, MessageCreatedUpdate) and (update.message.body.text.startswith('/') or update.message.body.text.startswith(cmd_prefix)):
@@ -525,13 +641,15 @@ class TamTamBot(object):
         # type: (ChatTitleChangedUpdate) -> bool
         pass
 
-    def get_chat_members(self, chat_id):
-        # type: (int) -> {ChatMember}
+    def get_chat_members(self, chat_id, user_ids=None):
+        # type: (int, [int]) -> {ChatMember}
         marker = None
         m_dict = {}
         members = []
         while True:
-            if marker:
+            if user_ids:
+                cm = self.chats.get_members(chat_id, user_ids=user_ids)
+            elif marker:
                 cm = self.chats.get_members(chat_id, marker=marker)
             else:
                 cm = self.chats.get_members(chat_id)
@@ -569,12 +687,12 @@ class TamTamBot(object):
                                 if isinstance(bot_user, ChatMember):
                                     # Только если бот админ
                                     if bot_user.is_admin:
-                                        members = self.get_chat_members(chat.chat_id)
+                                        members = self.get_chat_members(chat.chat_id, [user_id])
                                     else:
                                         self.lgz.debug('chat => chat_id=%(id)s - exit, because bot not admin' % {'id': chat.chat_id})
                                         continue
                         except ApiException as err:
-                            if str(err.body).lower().find('user is not admin') < 0:
+                            if err.status != 403:
                                 raise
                         if members or chat.type == ChatType.DIALOG:
                             chat_ext = ChatExt(chat, self.title)
