@@ -4,6 +4,7 @@ import logging
 import os
 import sqlite3
 import sys
+import requests
 from threading import Thread
 
 from time import sleep
@@ -14,7 +15,8 @@ import urllib3
 from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
     SendMessageResult, NewMessageBody, CallbackButton, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
     MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
-    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink
+    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
+    FileAttachmentRequest
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 from .utils.lng import get_text as _, translation_activate
@@ -292,7 +294,7 @@ class TamTamBot(object):
                 self.lgz.debug('Handler %s not callable.' % handler)
             if res and not update.is_cmd_response:
                 self.prev_step_write(update.index, update.update_current)
-            elif res and update.is_cmd_response:
+            elif (res or res is None) and update.is_cmd_response:
                 self.prev_step_delete(update.index)
         else:
             res = False
@@ -814,3 +816,62 @@ class TamTamBot(object):
         cursor.close()
         if row:
             return self.deserialize_update(row[1])
+
+    def upload_content(self, content, upload_type):
+        # type: ([], str) -> dict
+        upload_ep = self.upload.get_upload_url(type=upload_type)
+        if isinstance(upload_ep, UploadEndpoint):
+            rdf = requests.post(upload_ep.url, files={'files': ('file', content, 'multipart/form-data')})
+            if rdf.status_code == 200:
+                return rdf.json()
+
+    def attach_contents(self, items):
+        # type: ([(bytes, str)]) -> []
+        if not items:
+            return
+        attachments = []
+        for item in items:
+            klass = None
+            if item[1] == UploadType.VIDEO:
+                klass = VideoAttachmentRequest
+            elif item[1] == UploadType.PHOTO:
+                klass = PhotoAttachmentRequest
+            elif item[1] == UploadType.AUDIO:
+                klass = AudioAttachmentRequest
+            elif item[1] == UploadType.FILE:
+                klass = FileAttachmentRequest
+
+            if klass:
+                if not isinstance(item[0], dict):
+                    upl = self.upload_content(item[0], item[1])
+                    if isinstance(upl, dict):
+                        attachments.append(klass(upl))
+                else:
+                    attachments.append(klass(item[0]))
+        return attachments
+
+    # noinspection PyIncorrectDocstring
+    def send_message(self, mb, max_retry=20, sl_time=1, **kwargs):
+        # type: (NewMessageBody, int, int, dict) -> SendMessageResult
+        """
+        :param NewMessageBody mb: (required)
+        :param int user_id: Fill this parameter if you want to send message to user
+        :param int chat_id: Fill this if you send message to chat
+        :return: SendMessageResult
+                 If the method is called asynchronously,
+                 returns the request thread.
+        """
+
+        rpt = 0
+        while rpt < max_retry:
+            try:
+                rpt += 1
+                self.lgz.debug(str(rpt) + ' trying: send message with post')
+                res_msg = self.msg.send_message(mb, **kwargs)
+                self.lgz.debug(str(rpt) + ' trying: message is sent')
+                return res_msg
+            except ApiException as e:
+                self.lgz.debug('Warning: status:%(status)s; reason:%(reason)s; body:%(body)s' % {'status': e.status, 'reason': e.reason, 'body': e.body})
+                if rpt >= max_retry or e.status != 400:
+                    raise
+                sleep(sl_time)
