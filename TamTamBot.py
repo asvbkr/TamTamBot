@@ -16,9 +16,10 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     SendMessageResult, NewMessageBody, CallbackButton, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
     MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest
+    FileAttachmentRequest, Chat
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
+from .utils.utils import str_to_int
 from .utils.lng import get_text as _, translation_activate
 
 
@@ -27,6 +28,10 @@ class TamTamBotException(Exception):
 
 
 class TamTamBot(object):
+    _work_threads_max_count = None
+    threads = []
+
+    SERVICE_STR_SEQUENCE = chr(8203) + chr(8203) + chr(8203)
 
     def __init__(self):
         # Общие настройки - логирование, кодировка и т.п.
@@ -232,6 +237,15 @@ class TamTamBot(object):
         ''' % (self.prev_step_table_name, self.user_prop_table_name)
         self.conn_srv.cursor().executescript(sql_s)
 
+    @classmethod
+    def work_threads_max_count(cls):
+        if cls._work_threads_max_count is None:
+            cls._work_threads_max_count = str_to_int(os.environ.get('WORK_THREADS_MAX_COUNT'))
+            if cls._work_threads_max_count is None:
+                cls._work_threads_max_count = 15
+
+        return cls._work_threads_max_count
+
     @staticmethod
     def add_buttons_to_message_body(message_body, buttons):
         # type: (NewMessageBody, list) -> NewMessageBody
@@ -252,8 +266,10 @@ class TamTamBot(object):
         # type: (int, int, str) -> [[CallbackButtonCmd]]
         buttons = []
         chats_available = self.get_users_chats_with_bot(user_id, chat_id)
+        i = 0
         for chat in sorted(chats_available.values()):
-            buttons.append([CallbackButtonCmd(chat.chat_name, cmd, chat.chat.chat_id, Intent.DEFAULT)])
+            i += 1
+            buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, chat.chat.chat_id, Intent.DEFAULT)])
         return buttons
 
     def view_buttons_for_chats_available(self, title, cmd, user_id, chat_id):
@@ -306,14 +322,10 @@ class TamTamBot(object):
         Для обработки команд необходимо создание в наследниках методов с именем "cmd_handler_%s", где %s - имя команды.
         Например, для команды "start" см. ниже метод self.cmd_handler_start
         """
-        cmd = None
-        link = None
-        chat_id = None
-
         res_w_m = None
 
+        update = UpdateCmn(update)
         try:
-            update = UpdateCmn(update)
             if not update.chat_id:
                 return False
             cmd = update.cmd
@@ -324,7 +336,8 @@ class TamTamBot(object):
             self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
 
             if waiting_msg:
-                res_w_m = self.msg.send_message(NewMessageBody(_('Wait for process your request (%s)...') % cmd), chat_id=chat_id)
+                msg_t = (_('Wait for process your request (%s)...') % cmd) + self.SERVICE_STR_SEQUENCE
+                res_w_m = self.msg.send_message(NewMessageBody(msg_t), chat_id=chat_id)
 
             self.lgz.debug('Trying call handler.')
             handler_exists, res = self.call_cmd_handler(update)
@@ -341,9 +354,6 @@ class TamTamBot(object):
                 self.msg.send_message(NewMessageBody(_('"%s" is an incorrect command. Please specify.') % cmd, link=link), chat_id=chat_id)
                 res = False
             return res
-        except Exception:
-            self.msg.send_message(NewMessageBody(_('Your request (%s) cannot be completed at this time. Try again later.') % cmd, link=link), chat_id=chat_id)
-            raise
         finally:
             if isinstance(res_w_m, SendMessageResult):
                 self.msg.delete_message(res_w_m.message.body.mid)
@@ -467,6 +477,50 @@ class TamTamBot(object):
         # type: (bool) -> None
         pass
 
+    @classmethod
+    def update_is_service(cls, update):
+        # type: (UpdateCmn) -> bool
+        res = False
+        if update and update.message and update.message.body and update.message.body.text:
+            res = update.message.body.text[-(len(cls.SERVICE_STR_SEQUENCE)):] == cls.SERVICE_STR_SEQUENCE
+        return res
+
+    def send_error_message(self, update, error=None):
+        # type: (UpdateCmn, Exception) -> bool
+        res = None
+        if error:
+            self.lgz.warning('have error!')
+        if not self.update_is_service(update):
+            try:
+                if update and update.user_id:
+                    chat = self.chats.get_chat(update.chat_id)
+                    if isinstance(chat, Chat):
+                        chat = ChatExt(chat, self.title)
+                        if isinstance(chat, ChatExt):
+                            res = self.msg.send_message(NewMessageBody(
+                                (_('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd) + (' (%s)' % chat.chat_name), link=update.link
+                            ), user_id=update.user_id)
+            except Exception as e:
+                self.lgz.exception(e)
+
+            if not res:
+                # noinspection PyBroadException
+                try:
+                    if update and update.chat_id:
+                        res = self.msg.send_message(NewMessageBody(_('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd, link=update.link), chat_id=update.chat_id)
+                except Exception as e:
+                    self.lgz.exception(e)
+        return res
+
+    def deserialize_open_api_object(self, b_obj, response_type):
+        # type: (bytes, str) -> object
+        incoming_data = self.client.deserialize(urllib3.HTTPResponse(b_obj), response_type)
+        return incoming_data
+
+    def serialize_open_api_object(self, obj):
+        # type: (object) -> bytes
+        return json.dumps(self.client.sanitize_for_serialization(obj))
+
     def deserialize_update(self, b_obj):
         # type: (bytes) -> Update
         data = json.loads(b_obj)
@@ -477,26 +531,39 @@ class TamTamBot(object):
 
     def serialize_update(self, update):
         # type: (Update) -> bytes
-        return json.dumps(self.client.sanitize_for_serialization(update))
+        return self.serialize_open_api_object(update)
 
     # Обработка тела запроса
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
-
-        t = Thread(target=self.handle_request_body_, args=(request_body,))
-        # noinspection PyBroadException
-        try:
-            t.setDaemon(False)
-            self.lgz.debug('Thread started')
-            t.start()
-        except Exception:
-            self.lgz.exception('Exception')
-        finally:
-            self.lgz.debug('exited')
+        for t in TamTamBot.threads:
+            if not t.is_alive():
+                self.lgz.debug('stop %s!' % t)
+                t.join()
+                TamTamBot.threads.remove(t)
+        if len(TamTamBot.threads) < TamTamBot.work_threads_max_count():
+            t = Thread(target=self.handle_request_body_, args=(request_body,))
+            # noinspection PyBroadException
+            try:
+                TamTamBot.threads.append(t)
+                t.setDaemon(True)
+                self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
+                t.start()
+            except Exception:
+                self.lgz.exception('Exception')
+            finally:
+                self.lgz.debug('exited')
+        else:
+            self.lgz.debug('Threads pool is full. The maximum number (%s) is used.' % TamTamBot.work_threads_max_count())
+            incoming_data = self.deserialize_update(request_body)
+            if isinstance(incoming_data, Update):
+                self.send_error_message(UpdateCmn(incoming_data))
 
     # Обработка тела запроса
     def handle_request_body_(self, request_body):
         # type: (bytes) -> None
+        incoming_data = None
+        # noinspection PyBroadException
         try:
             if request_body:
                 self.lgz.debug('request body:\n%s\n%s' % (request_body, request_body.decode('utf-8')))
@@ -506,9 +573,16 @@ class TamTamBot(object):
                     incoming_data = self.after_handle_request_body(incoming_data)
                     self.lgz.debug('incoming data:\n type=%s;\n data=%s' % (type(incoming_data), incoming_data))
                     if isinstance(incoming_data, Update):
-                        self.handle_update(incoming_data)
+                        if not self.update_is_service(UpdateCmn(incoming_data)):
+                            self.handle_update(incoming_data)
+                        else:
+                            self.lgz.debug('This update is service - passed')
+        except Exception as e:
+            self.lgz.exception('Exception')
+            if isinstance(incoming_data, Update):
+                self.send_error_message(UpdateCmn(incoming_data), e)
         finally:
-            self.lgz.debug('exited')
+            self.lgz.debug('Thread exited. Threads count=%s' % len(TamTamBot.threads))
 
     def before_handle_request_body(self, request_body):
         # type: (bytes) -> bytes
@@ -522,61 +596,71 @@ class TamTamBot(object):
 
     def handle_update(self, update):
         # type: (Update) -> bool
-        self.lgz.debug(' -> %s' % type(update))
-        language = self.get_user_language_by_update(update)
-        translation_activate(language)
-        self.before_handle_update(update)
-        cmd_prefix = '@%s /' % self.info.username
-        if isinstance(update, MessageCreatedUpdate) and (update.message.body.text.startswith('/') or update.message.body.text.startswith(cmd_prefix)):
-            if update.message.body.text.startswith(cmd_prefix):
-                update.message.body.text = str(update.message.body.text).replace(cmd_prefix, '/')
-            self.lgz.debug('entry to %s' % self.process_command)
-            res = self.process_command(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
-        elif isinstance(update, MessageCreatedUpdate):
-            self.lgz.debug('entry to %s' % self.handle_message_created_update)
-            res = self.handle_message_created_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_message_created_update, res))
-        elif isinstance(update, MessageCallbackUpdate):
-            self.lgz.debug('entry to %s' % self.handle_message_callback_update)
-            res = self.handle_message_callback_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_message_callback_update, res))
-        elif isinstance(update, MessageEditedUpdate):
-            self.lgz.debug('entry to %s' % self.handle_message_edited_update)
-            res = self.handle_message_edited_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_message_edited_update, res))
-        elif isinstance(update, MessageRemovedUpdate):
-            self.lgz.debug('entry to %s' % self.handle_message_removed_update)
-            res = self.handle_message_removed_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_message_removed_update, res))
-        elif isinstance(update, BotStartedUpdate):
-            self.lgz.debug('entry to %s' % self.handle_bot_started_update)
-            res = self.handle_bot_started_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_started_update, res))
-        elif isinstance(update, BotAddedToChatUpdate):
-            self.lgz.debug('entry to %s' % self.handle_bot_added_to_chat_update)
-            res = self.handle_bot_added_to_chat_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_added_to_chat_update, res))
-        elif isinstance(update, BotRemovedFromChatUpdate):
-            self.lgz.debug('entry to %s' % self.handle_bot_removed_from_chat_update)
-            res = self.handle_bot_removed_from_chat_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_removed_from_chat_update, res))
-        elif isinstance(update, UserAddedToChatUpdate):
-            self.lgz.debug('entry to %s' % self.handle_user_added_to_chat_update)
-            res = self.handle_user_added_to_chat_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_user_added_to_chat_update, res))
-        elif isinstance(update, UserRemovedFromChatUpdate):
-            self.lgz.debug('entry to %s' % self.handle_user_removed_from_chat_update)
-            res = self.handle_user_removed_from_chat_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_user_removed_from_chat_update, res))
-        elif isinstance(update, ChatTitleChangedUpdate):
-            self.lgz.debug('entry to %s' % self.handle_chat_title_changed_update)
-            res = self.handle_chat_title_changed_update(update)
-            self.lgz.debug('exit from %s with result=%s' % (self.handle_chat_title_changed_update, res))
-        else:
-            res = False
-        self.after_handle_update(update)
-        return res
+        # noinspection PyBroadException
+        try:
+            self.lgz.debug(' -> %s' % type(update))
+            language = self.get_user_language_by_update(update)
+            translation_activate(language)
+            self.before_handle_update(update)
+            cmd_prefix = '@%s /' % self.info.username
+            if isinstance(update, MessageCreatedUpdate) and (update.message.body.text.startswith('/') or update.message.body.text.startswith(cmd_prefix)):
+                if update.message.body.text.startswith(cmd_prefix):
+                    update.message.body.text = str(update.message.body.text).replace(cmd_prefix, '/')
+                self.lgz.debug('entry to %s' % self.process_command)
+                res = self.process_command(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
+            elif isinstance(update, MessageCreatedUpdate):
+                if not self.update_is_service(UpdateCmn(update)):
+                    self.lgz.debug('entry to %s' % self.handle_message_created_update)
+                    res = self.handle_message_created_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_created_update, res))
+                else:
+                    res = False
+                    self.lgz.debug('This update is service - passed')
+            elif isinstance(update, MessageCallbackUpdate):
+                self.lgz.debug('entry to %s' % self.handle_message_callback_update)
+                res = self.handle_message_callback_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_callback_update, res))
+            elif isinstance(update, MessageEditedUpdate):
+                self.lgz.debug('entry to %s' % self.handle_message_edited_update)
+                res = self.handle_message_edited_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_edited_update, res))
+            elif isinstance(update, MessageRemovedUpdate):
+                self.lgz.debug('entry to %s' % self.handle_message_removed_update)
+                res = self.handle_message_removed_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_removed_update, res))
+            elif isinstance(update, BotStartedUpdate):
+                self.lgz.debug('entry to %s' % self.handle_bot_started_update)
+                res = self.handle_bot_started_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_started_update, res))
+            elif isinstance(update, BotAddedToChatUpdate):
+                self.lgz.debug('entry to %s' % self.handle_bot_added_to_chat_update)
+                res = self.handle_bot_added_to_chat_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_added_to_chat_update, res))
+            elif isinstance(update, BotRemovedFromChatUpdate):
+                self.lgz.debug('entry to %s' % self.handle_bot_removed_from_chat_update)
+                res = self.handle_bot_removed_from_chat_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_removed_from_chat_update, res))
+            elif isinstance(update, UserAddedToChatUpdate):
+                self.lgz.debug('entry to %s' % self.handle_user_added_to_chat_update)
+                res = self.handle_user_added_to_chat_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_user_added_to_chat_update, res))
+            elif isinstance(update, UserRemovedFromChatUpdate):
+                self.lgz.debug('entry to %s' % self.handle_user_removed_from_chat_update)
+                res = self.handle_user_removed_from_chat_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_user_removed_from_chat_update, res))
+            elif isinstance(update, ChatTitleChangedUpdate):
+                self.lgz.debug('entry to %s' % self.handle_chat_title_changed_update)
+                res = self.handle_chat_title_changed_update(update)
+                self.lgz.debug('exit from %s with result=%s' % (self.handle_chat_title_changed_update, res))
+            else:
+                res = False
+            self.after_handle_update(update)
+            return res
+        except Exception as e:
+            self.lgz.exception('Exception')
+            update = UpdateCmn(update)
+            self.send_error_message(update, e)
 
     def before_handle_update(self, update):
         # type: (Update) -> None
@@ -665,6 +749,50 @@ class TamTamBot(object):
                 break
         return m_dict
 
+    # Определяет доступность чата для пользователя
+    def chat_is_available(self, chat, user_id):
+        # type: (Chat, int) -> ChatExt
+        if isinstance(chat, Chat):
+            if chat.status in [ChatStatus.ACTIVE]:
+                members = None
+                bot_user = None
+                try:
+                    if chat.type != ChatType.DIALOG:
+                        bot_user = self.chats.get_membership(chat.chat_id)
+                        if isinstance(bot_user, ChatMember):
+                            # Только если бот админ
+                            if bot_user.is_admin:
+                                members = self.get_chat_members(chat.chat_id, [user_id])
+                            else:
+                                self.lgz.debug('chat => chat_id=%(id)s - pass, because bot not admin' % {'id': chat.chat_id})
+                except ApiException as err:
+                    if err.status != 403:
+                        raise
+                if members or chat.type == ChatType.DIALOG:
+                    chat_ext = ChatExt(chat, self.title)
+                    if members and chat.type != ChatType.DIALOG:
+                        current_user = members.get(user_id)
+                        if current_user and current_user.is_admin:
+                            if bot_user:
+                                chat_ext.admin_permissions[self.user_id] = bot_user.permissions
+                            else:
+                                self.lgz.debug('Pass, because bot with id=%s not found into chat %s members list' % (self.user_id, chat.chat_id))
+                    elif chat.type == ChatType.DIALOG:
+                        # Вот так интересно вычисляется id диалога бота с пользователем
+                        user_dialog_id = self.user_id ^ user_id
+                        if chat_ext.chat.chat_id == user_dialog_id:
+                            chat_ext.admin_permissions[self.user_id] = ['write', 'read_all_messages']
+                        else:
+                            self.lgz.debug('Exit, because dialog_id=%s not for user_id=%s' % (chat.chat_id, user_id))
+                    if chat_ext.admin_permissions:
+                        return chat_ext
+                    else:
+                        self.lgz.debug('Pass, because for user_id=%s  not admin permissions into chat_id=%s' % (user_id, chat.chat_id))
+                else:
+                    self.lgz.debug('Pass, because for user_id=%s  not enough permissions into chat_id=%s' % (user_id, chat.chat_id))
+            else:
+                self.lgz.debug('chat => chat_id=%(id)s - pass, because bot not active' % {'id': chat.chat_id})
+
     # Формирует список чатов пользователя, в которых админы и он и бот
     def get_users_chats_with_bot(self, user_id, chat_id):
         # type: (int, int) -> dict
@@ -680,39 +808,10 @@ class TamTamBot(object):
                 for chat in chat_list.chats:
                     self.lgz.debug('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s' %
                                    {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
-                    if chat.status in [ChatStatus.ACTIVE]:
-                        members = None
-                        bot_user = None
-                        try:
-                            if chat.type != ChatType.DIALOG:
-                                bot_user = self.chats.get_membership(chat.chat_id)
-                                if isinstance(bot_user, ChatMember):
-                                    # Только если бот админ
-                                    if bot_user.is_admin:
-                                        members = self.get_chat_members(chat.chat_id, [user_id])
-                                    else:
-                                        self.lgz.debug('chat => chat_id=%(id)s - exit, because bot not admin' % {'id': chat.chat_id})
-                                        continue
-                        except ApiException as err:
-                            if err.status != 403:
-                                raise
-                        if members or chat.type == ChatType.DIALOG:
-                            chat_ext = ChatExt(chat, self.title)
-                            if members and chat.type != ChatType.DIALOG:
-                                current_user = members.get(user_id)
-                                if current_user and current_user.is_admin:
-                                    if bot_user:
-                                        chat_ext.admin_permissions[self.user_id] = bot_user.permissions
-                                    else:
-                                        self.lgz.debug('Exit, because bot with id=%s not found into chat %s members list' % (self.user_id, chat.chat_id))
-                                        continue
-                            elif chat.type == ChatType.DIALOG and chat_ext.chat.chat_id == chat_id:
-                                chat_ext.admin_permissions[self.user_id] = ['write', 'read_all_messages']
-                            if chat_ext.admin_permissions:
-                                chats_available[chat.chat_id] = chat_ext
-                                self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
-                    else:
-                        self.lgz.debug('chat => chat_id=%(id)s - exit, because bot not active' % {'id': chat.chat_id})
+                    chat_ext = self.chat_is_available(chat, user_id)
+                    if chat_ext and chat_ext.admin_permissions:
+                        chats_available[chat.chat_id] = chat_ext
+                        self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
                     break
         return chats_available
