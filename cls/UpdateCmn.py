@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 import json
+import re
 
 from TamTamBot.utils.utils import get_param_value
 from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType
@@ -25,6 +26,7 @@ class UpdateCmn(object):
         self.chat_type = None
         self.is_cmd_response = False
         self.update_previous = None
+        self.recipient = None
 
         if isinstance(update, MessageCallbackUpdate):
             self.cmd = update.callback.payload
@@ -55,6 +57,23 @@ class UpdateCmn(object):
                 self.user = update.message.sender
                 self.user_id = update.message.sender.user_id
                 self.user_name = update.message.sender.name
+
+            f = re.match('(/\w+) (.+)', self.cmd, re.DOTALL)
+            if f:
+                self.cmd = f.group(1)
+                self.cmd_args = {}
+                i = 1
+                for l in f.group(2).split('\n'):
+                    ind_l = 'l%s' % i
+                    j = 1
+                    for c in l.split(' '):
+                        ind_c = 'c%s' % j
+                        if not self.cmd_args.get(ind_l):
+                            self.cmd_args[ind_l] = {}
+                        self.cmd_args[ind_l][ind_c] = c
+                        j += 1
+                    i += 1
+
         elif isinstance(update, BotStartedUpdate):
             self.cmd = '/start'
             self.link = None
