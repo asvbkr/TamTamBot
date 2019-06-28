@@ -1,9 +1,12 @@
 # -*- coding: UTF-8 -*-
+import json
+
 from openapi_client import CallbackButton
 
 
 class CallbackButtonCmd(CallbackButton):
-    def __init__(self, text=None, cmd=None, cmd_args=None, intent=None, mid=None, type_cb='callback'):
+    def __init__(self, text=None, cmd=None, cmd_args=None, intent=None, mid=None, type_cb='callback', bot_username=None):
+        # type: (str, str, dict, str, str, str, str) -> None
         self._cmd = None
         self._cmd_args = None
         self.mid = None
@@ -12,15 +15,16 @@ class CallbackButtonCmd(CallbackButton):
         self.cmd_args = cmd_args
         self.mid = mid
 
+        payload = {}
+        if bot_username:
+            payload['bot'] = bot_username
+        payload['cmd'] = '/' + cmd
         if cmd_args or mid:
-            payload = '{cmd=/%s}' % cmd
             if cmd_args:
-                payload += '{cmd_args=%s}' % cmd_args
+                payload['cmd_args'] = cmd_args
             if mid:
-                payload += '{mid=%s}' % mid
-        else:
-            payload = '/%s' % cmd
-        super(CallbackButtonCmd, self).__init__(text, payload, intent, type_cb)
+                payload['mid'] = mid
+        super(CallbackButtonCmd, self).__init__(text, json.dumps(payload), intent, type_cb)
 
     @property
     def cmd(self):

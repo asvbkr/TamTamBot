@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import json
 
 from TamTamBot.utils.utils import get_param_value
 from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType
@@ -12,6 +13,7 @@ class UpdateCmn(object):
         self.update_type = update.update_type
         self.timestamp = update.timestamp
         self.message = None
+        self.cmd_bot = None
         self.cmd = None
         self.cmd_args = None
         self.link = None
@@ -27,15 +29,16 @@ class UpdateCmn(object):
         if isinstance(update, MessageCallbackUpdate):
             self.cmd = update.callback.payload
             self.link = None
-            cmd = get_param_value(update.callback.payload, 'cmd')
-            if cmd:
-                self.cmd = cmd
-            mid = get_param_value(update.callback.payload, 'mid')
-            if mid:
-                self.link = NewMessageLink(MessageLinkType.REPLY, mid)
-            fk = get_param_value(update.callback.payload, 'cmd_args')
-            if fk:
-                self.cmd_args = fk
+
+            payload = json.loads(update.callback.payload)
+            if isinstance(payload, dict):
+                self.cmd_bot = payload.get('bot')
+                self.cmd = payload.get('cmd')
+                self.cmd_args = payload.get('cmd_args')
+                mid = payload.get('mid')
+                if mid:
+                    self.link = NewMessageLink(MessageLinkType.REPLY, mid)
+
             self.chat_id = update.message.recipient.chat_id
             self.user = update.callback.user
             self.user_id = update.callback.user.user_id
@@ -74,6 +77,8 @@ class UpdateCmn(object):
 
         if hasattr(update, 'message'):
             self.message = update.message
+            if hasattr(self.message, 'recipient'):
+                self.recipient = self.message.recipient
 
         if self.cmd:
             self.cmd = self.cmd[1:]

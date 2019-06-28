@@ -4,11 +4,10 @@ import logging
 import os
 import sqlite3
 import sys
-import requests
 from threading import Thread
-
 from time import sleep
 
+import requests
 import six
 import urllib3
 
@@ -19,8 +18,8 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     FileAttachmentRequest, Chat
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
-from .utils.utils import str_to_int
 from .utils.lng import get_text as _, translation_activate
+from .utils.utils import str_to_int
 
 
 class TamTamBotException(Exception):
@@ -269,7 +268,7 @@ class TamTamBot(object):
         i = 0
         for chat in sorted(chats_available.values()):
             i += 1
-            buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, chat.chat.chat_id, Intent.DEFAULT)])
+            buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, {'chat_id': chat.chat.chat_id}, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
     def view_buttons_for_chats_available(self, title, cmd, user_id, chat_id):
@@ -320,7 +319,7 @@ class TamTamBot(object):
         # type: (Update, bool) -> bool
         """
         Для обработки команд необходимо создание в наследниках методов с именем "cmd_handler_%s", где %s - имя команды.
-        Например, для команды "start" см. ниже метод self.cmd_handler_start
+        Например, для команды "start" см. ниже метод cmd_handler_start
         """
         res_w_m = None
 
@@ -328,15 +327,20 @@ class TamTamBot(object):
         try:
             if not update.chat_id:
                 return False
+            if update.cmd_bot and (update.cmd_bot != self.username):
+                self.lgz.debug('The command "%(cmd)s" is not applicable to the current bot "%(bot_c)s", but for bot "%(bot)s".' % {'cmd': update.cmd, 'bot_c': self.username, 'bot': update.cmd_bot})
+                return False
+
             cmd = update.cmd
             link = update.link
             chat_id = update.chat_id
+            chat_type = update.recipient.chat_type if update.recipient else None
 
             # self.lgz.w('cmd="%s"; user_id=%s' % (cmd, user_id))
             self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
 
-            if waiting_msg:
-                msg_t = (_('Wait for process your request (%s)...') % cmd) + self.SERVICE_STR_SEQUENCE
+            if waiting_msg and chat_type == ChatType.DIALOG:
+                msg_t = (('{%s} ' % self.title) + _('Wait for process your request (%s)...') % cmd) + self.SERVICE_STR_SEQUENCE
                 res_w_m = self.msg.send_message(NewMessageBody(msg_t), chat_id=chat_id)
 
             self.lgz.debug('Trying call handler.')
@@ -364,6 +368,8 @@ class TamTamBot(object):
 
     def cmd_handler_start(self, update):
         # type: (UpdateCmn) -> bool
+        if not (update.chat_type in [ChatType.DIALOG]):
+            return False
         if not update.is_cmd_response:  # Ответ текстом не ожидается
             return bool(
                 self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
@@ -371,6 +377,8 @@ class TamTamBot(object):
 
     def cmd_handler_menu(self, update):
         # type: (UpdateCmn) -> bool
+        if not (update.chat_type in [ChatType.DIALOG]):
+            return False
         if not update.is_cmd_response:  # Ответ текстом не ожидается
             return bool(
                 self.view_main_menu(update)
@@ -393,26 +401,26 @@ class TamTamBot(object):
         languages = []
 
         for k, v in self.languages_dict.items():
-            languages.append(CallbackButtonCmd(v, 'set_language', k, Intent.DEFAULT))
+            languages.append(CallbackButtonCmd(v, 'set_language', {'lang': k}, Intent.DEFAULT, bot_username=self.username))
         if not update.is_cmd_response:  # Обработка самой команды
-            if not update.cmd_args:
+            if not isinstance(update.cmd_args, dict):
                 buttons = self.get_buttons(languages, 'vertical')
                 return bool(
                     self.view_buttons('Выберите язык бота (select bot language):', buttons, chat_id=update.chat_id, link=update.link)
                 )
             else:
-                lc = update.cmd_args
+                lc = update.cmd_args.get('lang') or self.get_default_language()
                 self.set_user_language_by_update(update.update_current, lc)
                 return bool(
-                    self.msg.send_message(NewMessageBody('Установлен язык бота (bot language configured): %s' % self.languages_dict[lc], link=update.link), chat_id=update.chat_id)
+                    self.msg.send_message(NewMessageBody(f'Установлен язык бота (bot language configured): {self.languages_dict[lc]}', link=update.link), chat_id=update.chat_id)
                 )
 
     # Выводит список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
     def cmd_handler_list_all_chats(self, update):
         # type: (UpdateCmn) -> bool
+        if not (update.chat_type in [ChatType.DIALOG]):
+            return False
         if not update.is_cmd_response:  # Ответ текстом не ожидается
-            if not (update.chat_type in [ChatType.DIALOG]):
-                return False
             if not update.chat_id:
                 return False
             self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
@@ -432,23 +440,20 @@ class TamTamBot(object):
                 self.msg.send_message(mb, user_id=update.user_id)
             )
 
-    @property
-    def update_list(self):
-        """
-
-        :rtype: UpdateList
-        """
-        return self.subscriptions.get_updates(types=Update.update_types)
-
     def polling(self):
         self.lgz.info('Start. Press Ctrl-Break for stopping.')
+        marker = None
         while not self.stop_polling:
             # noinspection PyBroadException
             try:
                 self.before_polling_update_list()
                 self.lgz.debug('Update request')
-                ul = self.update_list
+                if marker:
+                    ul = self.subscriptions.get_updates(marker=marker, types=Update.update_types)
+                else:
+                    ul = self.subscriptions.get_updates(types=Update.update_types)
                 self.lgz.debug('Update request completed')
+                marker = ul.marker
                 if ul.updates:
                     self.after_polling_update_list(True)
                     self.lgz.info('There are %s updates' % len(ul.updates))
@@ -487,7 +492,12 @@ class TamTamBot(object):
 
     def send_error_message(self, update, error=None):
         # type: (UpdateCmn, Exception) -> bool
+        if not isinstance(update, UpdateCmn):
+            return False
+
         res = None
+        main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd
+
         if error:
             self.lgz.warning('have error!')
         if not self.update_is_service(update):
@@ -498,8 +508,7 @@ class TamTamBot(object):
                         chat = ChatExt(chat, self.title)
                         if isinstance(chat, ChatExt):
                             res = self.msg.send_message(NewMessageBody(
-                                (_('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd) + (' (%s)' % chat.chat_name), link=update.link
-                            ), user_id=update.user_id)
+                                main_info + (' (%s)' % chat.chat_name), link=update.link), user_id=update.user_id)
             except Exception as e:
                 self.lgz.exception(e)
 
@@ -507,7 +516,7 @@ class TamTamBot(object):
                 # noinspection PyBroadException
                 try:
                     if update and update.chat_id:
-                        res = self.msg.send_message(NewMessageBody(_('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd, link=update.link), chat_id=update.chat_id)
+                        res = self.msg.send_message(NewMessageBody(main_info, link=update.link), chat_id=update.chat_id)
                 except Exception as e:
                     self.lgz.exception(e)
         return res
@@ -602,10 +611,18 @@ class TamTamBot(object):
             language = self.get_user_language_by_update(update)
             translation_activate(language)
             self.before_handle_update(update)
+
+            is_command = False
             cmd_prefix = '@%s /' % self.info.username
-            if isinstance(update, MessageCreatedUpdate) and (update.message.body.text.startswith('/') or update.message.body.text.startswith(cmd_prefix)):
+            if isinstance(update, MessageCreatedUpdate):
                 if update.message.body.text.startswith(cmd_prefix):
+                    is_command = True
                     update.message.body.text = str(update.message.body.text).replace(cmd_prefix, '/')
+                elif update.message.body.text.startswith('/'):
+                    if update.message.recipient.chat_type == ChatType.DIALOG:
+                        is_command = True
+
+            if is_command:
                 self.lgz.debug('entry to %s' % self.process_command)
                 res = self.process_command(update)
                 self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
@@ -834,8 +851,8 @@ class TamTamBot(object):
         if not cmd_dict:
             return []
         return self.get_buttons([
-            CallbackButtonCmd(_('Yes'), cmd_dict['yes']['cmd'], cmd_dict['yes']['cmd_args'], Intent.POSITIVE),
-            CallbackButtonCmd(_('No'), cmd_dict['no']['cmd'], cmd_dict['no']['cmd_args'], Intent.NEGATIVE),
+            CallbackButtonCmd(_('Yes'), cmd_dict['yes']['cmd'], cmd_dict['yes']['cmd_args'], Intent.POSITIVE, bot_username=self.username),
+            CallbackButtonCmd(_('No'), cmd_dict['no']['cmd'], cmd_dict['no']['cmd_args'], Intent.NEGATIVE, bot_username=self.username),
         ])
 
     @staticmethod

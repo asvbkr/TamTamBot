@@ -4,15 +4,19 @@ from django.utils.translation import gettext as _
 
 
 class ChatExt(object):
-    def __init__(self, chat, this_dialog_name):
-        # type: (Chat, str) -> None
+    def __init__(self, chat, this_dialog_name, admin_permissions=None):
+        # type: (Chat, str,{int: [str]}) -> None
         self.chat = chat
-        if chat:
-            self.chat_id = chat.chat_id
-        else:
-            self.chat_id = None
         self.this_dialog_name = this_dialog_name
-        self.admin_permissions = {}
+        self.admin_permissions = admin_permissions or {}
+
+        self._chat_id = None
+
+    @property
+    def chat_id(self):
+        if self._chat_id is None and self.chat:
+            self._chat_id = self.chat.chat_id
+        return self._chat_id
 
     @property
     def title(self):
