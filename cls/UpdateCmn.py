@@ -2,7 +2,6 @@
 import json
 import re
 
-from TamTamBot.utils.utils import get_param_value
 from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType
 
 
@@ -58,7 +57,7 @@ class UpdateCmn(object):
                 self.user_id = update.message.sender.user_id
                 self.user_name = update.message.sender.name
 
-            f = re.match('(/\w+) (.+)', self.cmd, re.DOTALL)
+            f = re.match(r'(/\w+) (.+)', self.cmd, re.DOTALL)
             if f:
                 self.cmd = f.group(1)
                 self.cmd_args = {}

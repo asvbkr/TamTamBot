@@ -2,8 +2,11 @@
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
+import traceback
+from datetime import datetime
 from threading import Thread
 from time import sleep
 
@@ -74,6 +77,7 @@ class TamTamBot(object):
         self.upload = UploadApi(self.client)
 
         self._languages_dict = None
+        self._admins_contacts = None
 
         self.info = None
         try:
@@ -123,6 +127,35 @@ class TamTamBot(object):
             buttons.append([CallbackButton('Изменить язык / set language', '/set_language', Intent.DEFAULT)])
 
         return buttons
+
+    @property
+    def admins_contacts(self):
+        # type: () -> {[]}
+        if self._admins_contacts is None:
+            self._admins_contacts = {}
+            # Формат: chats:-70934954694426,-70968954694437;users:591582322454,123582322123;
+            l_fe = os.environ.get('TT_BOT_ADMINS_CONTACTS')
+            if l_fe:
+                f_users = re.match(r'.*;?users:(-?\d.+?);.*', l_fe)
+                f_chats = re.match(r'.*;?chats:(-?\d.+?);.*', l_fe)
+                if f_users:
+                    l_el = []
+                    for _ in f_users.groups()[0].split(','):
+                        el = str_to_int(_)
+                        if el:
+                            if el not in l_el:
+                                l_el.append(el)
+                    self._admins_contacts['users'] = l_el
+                if f_chats:
+                    l_el = []
+                    for _ in f_chats.groups()[0].split(','):
+                        el = str_to_int(_)
+                        if el:
+                            if el not in l_el:
+                                l_el.append(el)
+                    self._admins_contacts['chats'] = l_el
+
+        return self._admins_contacts
 
     @property
     def languages_dict(self):
@@ -261,19 +294,19 @@ class TamTamBot(object):
         if update.chat_id:
             return self.msg.send_message(self.add_buttons_to_message_body(NewMessageBody(self.main_menu_title), self.main_menu_buttons), chat_id=update.chat_id)
 
-    def get_buttons_for_chats_available(self, user_id, chat_id, cmd):
-        # type: (int, int, str) -> [[CallbackButtonCmd]]
+    def get_buttons_for_chats_available(self, user_id, cmd):
+        # type: (int, str) -> [[CallbackButtonCmd]]
         buttons = []
-        chats_available = self.get_users_chats_with_bot(user_id, chat_id)
+        chats_available = self.get_users_chats_with_bot(user_id)
         i = 0
         for chat in sorted(chats_available.values()):
             i += 1
             buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, {'chat_id': chat.chat.chat_id}, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
-    def view_buttons_for_chats_available(self, title, cmd, user_id, chat_id):
-        # type: (str, str, int, int) -> SendMessageResult
-        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, chat_id, cmd), user_id)
+    def view_buttons_for_chats_available(self, title, cmd, user_id):
+        # type: (str, str, int) -> SendMessageResult
+        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id)
 
     def get_cmd_handler(self, update):
         if not isinstance(update, (Update, UpdateCmn)):
@@ -412,7 +445,7 @@ class TamTamBot(object):
                 lc = update.cmd_args.get('lang') or self.get_default_language()
                 self.set_user_language_by_update(update.update_current, lc)
                 return bool(
-                    self.msg.send_message(NewMessageBody(f'Установлен язык бота (bot language configured): {self.languages_dict[lc]}', link=update.link), chat_id=update.chat_id)
+                    self.msg.send_message(NewMessageBody('Установлен язык бота (bot language configured): %s' % self.languages_dict[lc], link=update.link), chat_id=update.chat_id)
                 )
 
     # Выводит список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
@@ -425,7 +458,7 @@ class TamTamBot(object):
                 return False
             self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
 
-            chats_available = self.get_users_chats_with_bot(update.user_id, update.chat_id)
+            chats_available = self.get_users_chats_with_bot(update.user_id)
             list_c = []
             for chat_ext in sorted(chats_available.values()):
                 list_c.append(_('%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n') %
@@ -490,6 +523,36 @@ class TamTamBot(object):
             res = update.message.body.text[-(len(cls.SERVICE_STR_SEQUENCE)):] == cls.SERVICE_STR_SEQUENCE
         return res
 
+    def send_admin_message(self, text, update=None, exception=None):
+        # type: (str, UpdateCmn, Exception) -> bool
+        link = None
+        if isinstance(update, UpdateCmn):
+            link = update.link
+        err = ''
+        if exception:
+            err = traceback.format_exc()
+        res = False
+        now = datetime.now()
+        text = ('%s(bot @%s): %s' % (now, self.username, (text + err)))[:NewMessageBody.MAX_BODY_LENGTH]
+        if self.admins_contacts:
+            if self.admins_contacts.get('chats'):
+                for el in self.admins_contacts.get('chats'):
+                    try:
+                        res_s = self.msg.send_message(NewMessageBody(text, link=link), chat_id=el)
+                        res = res or res_s
+                    except Exception as e:
+                        self.lgz.exception(e)
+
+            if self.admins_contacts.get('users'):
+                for el in self.admins_contacts.get('users'):
+                    try:
+                        res_s = self.msg.send_message(NewMessageBody(text, link=link), user_id=el)
+                        res = res or res_s
+                    except Exception as e:
+                        self.lgz.exception(e)
+
+        return res
+
     def send_error_message(self, update, error=None):
         # type: (UpdateCmn, Exception) -> bool
         if not isinstance(update, UpdateCmn):
@@ -497,9 +560,11 @@ class TamTamBot(object):
 
         res = None
         main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd
+        chat_type = update.recipient.chat_type if update.recipient else None
 
         if error:
-            self.lgz.warning('have error!')
+            self.send_admin_message(str(error), update)
+
         if not self.update_is_service(update):
             try:
                 if update and update.user_id:
@@ -513,12 +578,15 @@ class TamTamBot(object):
                 self.lgz.exception(e)
 
             if not res:
-                # noinspection PyBroadException
-                try:
-                    if update and update.chat_id:
-                        res = self.msg.send_message(NewMessageBody(main_info, link=update.link), chat_id=update.chat_id)
-                except Exception as e:
-                    self.lgz.exception(e)
+                if chat_type == ChatType.DIALOG:
+                    try:
+                        if update and update.chat_id:
+                            res = self.msg.send_message(NewMessageBody(main_info, link=update.link), chat_id=update.chat_id)
+                    except Exception as e:
+                        self.lgz.exception(e)
+                else:
+                    self.send_admin_message(str(main_info), update)
+
         return res
 
     def deserialize_open_api_object(self, b_obj, response_type):
@@ -563,10 +631,13 @@ class TamTamBot(object):
             finally:
                 self.lgz.debug('exited')
         else:
-            self.lgz.debug('Threads pool is full. The maximum number (%s) is used.' % TamTamBot.work_threads_max_count())
+            err = 'Threads pool is full. The maximum number (%s) is used.' % TamTamBot.work_threads_max_count()
+            self.lgz.debug(err)
             incoming_data = self.deserialize_update(request_body)
             if isinstance(incoming_data, Update):
-                self.send_error_message(UpdateCmn(incoming_data))
+                update = UpdateCmn(incoming_data)
+                self.send_error_message(update)
+                self.send_admin_message(err, update)
 
     # Обработка тела запроса
     def handle_request_body_(self, request_body):
@@ -811,8 +882,8 @@ class TamTamBot(object):
                 self.lgz.debug('chat => chat_id=%(id)s - pass, because bot not active' % {'id': chat.chat_id})
 
     # Формирует список чатов пользователя, в которых админы и он и бот
-    def get_users_chats_with_bot(self, user_id, chat_id):
-        # type: (int, int) -> dict
+    def get_users_chats_with_bot(self, user_id):
+        # type: (int) -> dict
         marker = None
         chats_available = {}
         while True:
