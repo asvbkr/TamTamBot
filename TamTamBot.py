@@ -15,7 +15,7 @@ import six
 import urllib3
 
 from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
-    SendMessageResult, NewMessageBody, CallbackButton, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
+    SendMessageResult, NewMessageBody, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
     MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat
@@ -116,15 +116,15 @@ class TamTamBot(object):
     def main_menu_buttons(self):
         # type: () -> []
         buttons = [
-            [CallbackButton(_('About bot'), '/start', Intent.POSITIVE)],
-            [CallbackButton(_('All chat bots'), '/list_all_chats', Intent.POSITIVE)],
+            [CallbackButtonCmd(_('About bot'), 'start', Intent.POSITIVE)],
+            [CallbackButtonCmd(_('All chat bots'), 'list_all_chats', Intent.POSITIVE)],
             [LinkButton(_('API documentation for TamTam-bots'), 'https://dev.tamtam.chat/')],
             [LinkButton(_('JSON Diagram API TamTam Bots'), 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
             [RequestContactButton(_('Report your contact details'))],
             [RequestGeoLocationButton(_('Report your location'), True)],
         ]
         if len(self.languages_dict) > 1:
-            buttons.append([CallbackButton('Изменить язык / set language', '/set_language', Intent.DEFAULT)])
+            buttons.append([CallbackButtonCmd('Изменить язык / set language', 'set_language', Intent.DEFAULT)])
 
         return buttons
 
