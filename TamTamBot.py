@@ -14,11 +14,15 @@ import requests
 import six
 import urllib3
 
-from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
-    SendMessageResult, NewMessageBody, LinkButton, Intent, InlineKeyboardAttachmentRequest, InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
-    MessageEditedUpdate, UserWithPhoto, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
-    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest, Chat
+from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, MessagesApi, BotsApi, ChatsApi, \
+    UploadApi, MessageCreatedUpdate, MessageCallbackUpdate, BotStartedUpdate, \
+    SendMessageResult, NewMessageBody, LinkButton, Intent, InlineKeyboardAttachmentRequest, \
+    InlineKeyboardAttachmentRequestPayload, RequestContactButton, RequestGeoLocationButton, \
+    MessageEditedUpdate, ChatMembersList, ChatMember, ChatType, ChatList, ChatStatus, InlineKeyboardAttachment, \
+    MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
+    UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
+    UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
+    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 from .utils.lng import get_text as _, translation_activate
@@ -81,11 +85,12 @@ class TamTamBot(object):
 
         self.info = None
         try:
-            self.info = self.api.get_my_info()
+            bp = BotPatch(commands=self.commands, description=self.description)
+            self.info = self.api.edit_my_info(bp)
         except ApiException:
             self.lgz.exception('ApiException')
             pass
-        if isinstance(self.info, UserWithPhoto):
+        if isinstance(self.info, BotInfo):
             self.user_id = self.info.user_id
             self.name = self.info.name
             self.username = self.info.username
@@ -105,6 +110,7 @@ class TamTamBot(object):
     @property
     def about(self):
         # type: () -> str
+        self.lgz.warning('The default about string is used. Maybe is error?')
         return _('This is the coolest bot in the world, but so far can not do anything. To open the menu, type /menu.')
 
     @property
@@ -115,18 +121,41 @@ class TamTamBot(object):
     @property
     def main_menu_buttons(self):
         # type: () -> []
+        self.lgz.warning('The default main menu buttons is used. Maybe is error?')
         buttons = [
-            [CallbackButtonCmd(_('About bot'), 'start', Intent.POSITIVE)],
-            [CallbackButtonCmd(_('All chat bots'), 'list_all_chats', Intent.POSITIVE)],
+            [CallbackButtonCmd(_('About bot'), 'start', intent=Intent.POSITIVE)],
+            [CallbackButtonCmd(_('All chat bots'), 'list_all_chats', intent=Intent.POSITIVE)],
             [LinkButton(_('API documentation for TamTam-bots'), 'https://dev.tamtam.chat/')],
             [LinkButton(_('JSON Diagram API TamTam Bots'), 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
             [RequestContactButton(_('Report your contact details'))],
             [RequestGeoLocationButton(_('Report your location'), True)],
         ]
         if len(self.languages_dict) > 1:
-            buttons.append([CallbackButtonCmd('Изменить язык / set language', 'set_language', Intent.DEFAULT)])
+            buttons.append([CallbackButtonCmd('Изменить язык / set language', 'set_language', intent=Intent.DEFAULT)])
 
         return buttons
+
+    @property
+    def token(self):
+        # type: () -> str
+        raise NotImplementedError
+
+    @property
+    def description(self):
+        # type: () -> str
+        raise NotImplementedError
+
+    def get_commands(self):
+        # type: () -> [BotCommand]
+        self.lgz.warning('The default command list is used. Maybe is error?')
+        commands = [
+            BotCommand('start', 'начать (о боте) | start (about bot)'),
+            BotCommand('menu', 'показать меню | display menu'),
+            BotCommand('list_all_chats', 'список всех чатов | list all chats'),
+        ]
+        if len(self.languages_dict) > 1:
+            commands.append(BotCommand('set_language', 'изменить язык | set language'))
+        return commands
 
     @property
     def admins_contacts(self):
@@ -236,11 +265,6 @@ class TamTamBot(object):
         self._logging_level = val
         self.lgz.setLevel(self._logging_level)
 
-    @property
-    def token(self):
-        # type: () -> str
-        raise NotImplementedError
-
     def set_encoding_for_p2(self, encoding='utf8'):
         if six.PY3:
             return
@@ -250,6 +274,30 @@ class TamTamBot(object):
             # noinspection PyUnresolvedReferences
             sys.setdefaultencoding(encoding)
             self.lgz.info('The default encoding is set to %s' % sys.getdefaultencoding())
+
+    @classmethod
+    def check_commands(cls, commands):
+        # type: ([BotCommand]) -> []
+        err_c = []
+        for cmd in commands:
+            handler_name = 'cmd_handler_%s' % cmd.name
+            if hasattr(cls, handler_name):
+                cmd_h = getattr(cls, handler_name)
+                if not callable(cmd_h):
+                    err_c.append(handler_name)
+            else:
+                err_c.append(handler_name)
+        return err_c
+
+    @property
+    def commands(self):
+        # type: () -> [BotCommand]
+        l_c = self.get_commands()
+        l_e = self.check_commands(l_c)
+        if l_e:
+            raise TamTamBotException('Error in command list. Not found handlers :%s.' % l_e)
+        else:
+            return l_c
 
     @property
     def conn_srv(self):
@@ -367,7 +415,7 @@ class TamTamBot(object):
             cmd = update.cmd
             link = update.link
             chat_id = update.chat_id
-            chat_type = update.recipient.chat_type if update.recipient else None
+            chat_type = update.chat_type
 
             # self.lgz.w('cmd="%s"; user_id=%s' % (cmd, user_id))
             self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
@@ -523,8 +571,8 @@ class TamTamBot(object):
             res = update.message.body.text[-(len(cls.SERVICE_STR_SEQUENCE)):] == cls.SERVICE_STR_SEQUENCE
         return res
 
-    def send_admin_message(self, text, update=None, exception=None):
-        # type: (str, UpdateCmn, Exception) -> bool
+    def send_admin_message(self, text, update=None, exception=None, notify=True):
+        # type: (str, UpdateCmn, Exception, bool) -> bool
         link = None
         if isinstance(update, UpdateCmn):
             link = update.link
@@ -535,10 +583,11 @@ class TamTamBot(object):
         now = datetime.now()
         text = ('%s(bot @%s): %s' % (now, self.username, (text + err)))[:NewMessageBody.MAX_BODY_LENGTH]
         if self.admins_contacts:
+            mb = NewMessageBody(text, link=link, notify=notify)
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
                     try:
-                        res_s = self.msg.send_message(NewMessageBody(text, link=link), chat_id=el)
+                        res_s = self.msg.send_message(mb, chat_id=el)
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
@@ -546,7 +595,7 @@ class TamTamBot(object):
             if self.admins_contacts.get('users'):
                 for el in self.admins_contacts.get('users'):
                     try:
-                        res_s = self.msg.send_message(NewMessageBody(text, link=link), user_id=el)
+                        res_s = self.msg.send_message(mb, user_id=el)
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
@@ -559,11 +608,11 @@ class TamTamBot(object):
             return False
 
         res = None
-        main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time. Try again later.') % update.cmd
-        chat_type = update.recipient.chat_type if update.recipient else None
+        main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time (Maintenance mode etc.). Try again later.') % update.cmd
+        chat_type = update.chat_type
 
         if error:
-            self.send_admin_message(str(error), update)
+            self.send_admin_message('error', update, error)
 
         if not self.update_is_service(update):
             try:
@@ -768,7 +817,17 @@ class TamTamBot(object):
             # Если это ответ на вопрос команды, то установить соответствующий признак и снова вызвать команду
             update.is_cmd_response = True
             update.update_previous = update_previous
-            handler_exists, res = self.call_cmd_handler(update)
+            update_previous = UpdateCmn(update_previous)
+            res_w_m = None
+            try:
+                if update.chat_type == ChatType.DIALOG:
+                    msg_t = (('{%s} ' % self.title) + _('Wait for process your request (%s)...') % update_previous.cmd) + self.SERVICE_STR_SEQUENCE
+                    res_w_m = self.msg.send_message(NewMessageBody(msg_t), chat_id=update.chat_id)
+
+                handler_exists, res = self.call_cmd_handler(update)
+            finally:
+                if isinstance(res_w_m, SendMessageResult):
+                    self.msg.delete_message(res_w_m.message.body.mid)
             return res
         self.lgz.debug('Trivial message. Not commands answer (%s).' % update.index)
 

@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from openapi_client import Chat, ChatType
-from django.utils.translation import gettext as _
+from ..utils.lng import get_text as _
 
 
 class ChatExt(object):

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-06-16 12:37+0300\n"
+"POT-Creation-Date: 2019-07-04 20:59+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,101 +17,103 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: .\TamTamBot.py:80
+#: .\TamTamBot.py:92
 #, python-format
 msgid "bot @%(username)s (%(name)s)"
 msgstr ""
 
-#: .\TamTamBot.py:87
+#: .\TamTamBot.py:108
 msgid ""
 "This is the coolest bot in the world, but so far can not do anything. To "
 "open the menu, type /menu."
 msgstr ""
 
-#: .\TamTamBot.py:88
+#: .\TamTamBot.py:113
 msgid "Abilities:"
 msgstr ""
 
-#: .\TamTamBot.py:90
+#: .\TamTamBot.py:119
 msgid "About bot"
 msgstr ""
 
-#: .\TamTamBot.py:91
+#: .\TamTamBot.py:120
 msgid "All chat bots"
 msgstr ""
 
-#: .\TamTamBot.py:92
+#: .\TamTamBot.py:121
 msgid "API documentation for TamTam-bots"
 msgstr ""
 
-#: .\TamTamBot.py:93
+#: .\TamTamBot.py:122
 msgid "JSON Diagram API TamTam Bots"
 msgstr ""
 
-#: .\TamTamBot.py:94
+#: .\TamTamBot.py:123
 msgid "Report your contact details"
 msgstr ""
 
-#: .\TamTamBot.py:95
+#: .\TamTamBot.py:124
 msgid "Report your location"
 msgstr ""
 
-#: .\TamTamBot.py:242
+#: .\TamTamBot.py:376
 #, python-format
 msgid "Wait for process your request (%s)..."
 msgstr ""
 
-#: .\TamTamBot.py:256
+#: .\TamTamBot.py:391
 #, python-format
 msgid "\"%s\" is an incorrect command. Please specify."
 msgstr ""
 
-#: .\TamTamBot.py:260
-#, python-format
-msgid "Your request (%s) cannot be completed at this time. Try again later."
-msgstr ""
-
-#: .\TamTamBot.py:297
+#: .\TamTamBot.py:464
 #, python-format
 msgid ""
 "%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n"
 msgstr ""
 
-#: .\TamTamBot.py:301
+#: .\TamTamBot.py:468
 msgid "Chats not found."
 msgstr ""
 
-#: .\TamTamBot.py:303
+#: .\TamTamBot.py:470
 msgid ""
 "Bot connected to the chat:\n"
 "\n"
 msgstr ""
 
-#: .\TamTamBot.py:596
+#: .\TamTamBot.py:562
+#, python-format
+msgid ""
+"Your request (%s) cannot be completed at this time (Maintenance mode etc.). "
+"Try again later."
+msgstr ""
+
+#: .\TamTamBot.py:912
 msgid "No available items found."
 msgstr ""
 
-#: .\TamTamBot.py:609
+#: .\TamTamBot.py:925
 msgid "Yes"
 msgstr ""
 
-#: .\TamTamBot.py:610
+#: .\TamTamBot.py:926
 msgid "No"
 msgstr ""
 
-#: .\cls\ChatExt.py:31
+#: .\cls\ChatExt.py:35
 #, python-format
 msgid "current bot (№%s)"
 msgstr ""
 
-#: .\cls\ChatExt.py:39
+#: .\cls\ChatExt.py:43
 msgid "dialog"
 msgstr ""
 
-#: .\cls\ChatExt.py:40
+#: .\cls\ChatExt.py:44
 msgid "chat"
 msgstr ""
 
-#: .\cls\ChatExt.py:41
+#: .\cls\ChatExt.py:45
 msgid "channel"
 msgstr ""

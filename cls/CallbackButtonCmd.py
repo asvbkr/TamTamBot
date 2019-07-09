@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 import json
 
-from openapi_client import CallbackButton
+from openapi_client import CallbackButton, Button
 
 
 class CallbackButtonCmd(CallbackButton):
@@ -24,7 +24,7 @@ class CallbackButtonCmd(CallbackButton):
                 payload['cmd_args'] = cmd_args
             if mid:
                 payload['mid'] = mid
-        super(CallbackButtonCmd, self).__init__(text, json.dumps(payload), intent, type_cb)
+        super(CallbackButtonCmd, self).__init__(text[:Button.MAX_TEXT_LENGTH], json.dumps(payload), intent, type_cb)
 
     @property
     def cmd(self):

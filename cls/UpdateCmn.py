@@ -2,7 +2,7 @@
 import json
 import re
 
-from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType
+from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User
 
 
 class UpdateCmn(object):
@@ -31,7 +31,10 @@ class UpdateCmn(object):
             self.cmd = update.callback.payload
             self.link = None
 
-            payload = json.loads(update.callback.payload)
+            try:
+                payload = json.loads(update.callback.payload)
+            except json.decoder.JSONDecodeError:
+                payload = None
             if isinstance(payload, dict):
                 self.cmd_bot = payload.get('bot')
                 self.cmd = payload.get('cmd')
@@ -84,6 +87,11 @@ class UpdateCmn(object):
                 self.user = update.user
             elif hasattr(update, 'sender'):
                 self.user = update.message.sender
+            if isinstance(self.user, User):
+                if self.user_id is None:
+                    self.user_id = self.user.user_id
+                if self.user_name is None:
+                    self.user_name = self.user.name
 
         if self.chat_id is None:
             if hasattr(update, 'chat_id'):
