@@ -1068,11 +1068,11 @@ class TamTamBot(object):
         if row:
             return self.deserialize_update(row[1])
 
-    def upload_content(self, content, upload_type):
-        # type: ([], str) -> dict
+    def upload_content(self, content, upload_type, content_name=None):
+        # type: ([], str, str) -> dict
         upload_ep = self.upload.get_upload_url(type=upload_type)
         if isinstance(upload_ep, UploadEndpoint):
-            rdf = requests.post(upload_ep.url, files={'files': ('file', content, 'multipart/form-data')})
+            rdf = requests.post(upload_ep.url, files={'files': ('file' if not content_name else content_name, content, 'multipart/form-data')})
             if rdf.status_code == 200:
                 return rdf.json()
 
@@ -1094,7 +1094,7 @@ class TamTamBot(object):
 
             if klass:
                 if not isinstance(item[0], dict):
-                    upl = self.upload_content(item[0], item[1])
+                    upl = self.upload_content(item[0], item[1], None if len(item) < 3 else item[2])
                     if isinstance(upl, dict):
                         attachments.append(klass(upl))
                 else:
