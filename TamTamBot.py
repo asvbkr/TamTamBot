@@ -530,10 +530,10 @@ class TamTamBot(object):
                 self.before_polling_update_list()
                 self.lgz.debug('Update request')
                 if marker:
-                    ul = self.subscriptions.get_updates(marker=marker, types=Update.update_types)
+                    ul = self.subscriptions.get_updates(marker=marker, types=Update.update_types, _request_timeout=45)
                 else:
-                    ul = self.subscriptions.get_updates(types=Update.update_types)
-                self.lgz.debug('Update request completed')
+                    ul = self.subscriptions.get_updates(types=Update.update_types, _request_timeout=45)
+                self.lgz.debug('Update request completed. Marker=%s' % marker)
                 marker = ul.marker
                 if ul.updates:
                     self.after_polling_update_list(True)
