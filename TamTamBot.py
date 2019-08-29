@@ -123,15 +123,15 @@ class TamTamBot(object):
         # type: () -> []
         self.lgz.warning('The default main menu buttons is used. Maybe is error?')
         buttons = [
-            [CallbackButtonCmd(_('About bot'), 'start', intent=Intent.POSITIVE)],
-            [CallbackButtonCmd(_('All chat bots'), 'list_all_chats', intent=Intent.POSITIVE)],
+            [CallbackButtonCmd(_('About bot'), 'start', intent=Intent.POSITIVE, bot_username=self.username)],
+            [CallbackButtonCmd(_('All chat bots'), 'list_all_chats', intent=Intent.POSITIVE, bot_username=self.username)],
             [LinkButton(_('API documentation for TamTam-bots'), 'https://dev.tamtam.chat/')],
             [LinkButton(_('JSON Diagram API TamTam Bots'), 'https://github.com/tamtam-chat/tamtam-bot-api-schema')],
             [RequestContactButton(_('Report your contact details'))],
             [RequestGeoLocationButton(_('Report your location'), True)],
         ]
         if len(self.languages_dict) > 1:
-            buttons.append([CallbackButtonCmd('Изменить язык / set language', 'set_language', intent=Intent.DEFAULT)])
+            buttons.append([CallbackButtonCmd('Изменить язык / set language', 'set_language', intent=Intent.DEFAULT, bot_username=self.username)])
 
         return buttons
 
@@ -233,7 +233,7 @@ class TamTamBot(object):
             row = cursor.fetchone()
 
             if row[0] > 0:
-                # noinspection SqlResolve
+                # noinspection SqlResolve,SqlWithoutWhere
                 cursor.execute(
                     'UPDATE %(table)s SET [language] = :language WHERE [user_id]=:user_id' %
                     {'table': self.user_prop_table_name}, {'language': language, 'user_id': update.user_id})
