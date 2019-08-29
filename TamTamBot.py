@@ -1126,3 +1126,11 @@ class TamTamBot(object):
                 if rpt >= max_retry or e.status != 400:
                     raise
                 sleep(sl_time)
+
+    @staticmethod
+    def get_old_mid(update):
+        # type: (UpdateCmn) -> str
+        res = None
+        if update.chat_id and update.chat_id and update.message and update.message.body:
+            res = 'mid.%016x%016x' % (update.chat_id & (2 ** 64 - 1), update.message.body.seq & (2 ** 64 - 1))
+        return res
