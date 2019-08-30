@@ -377,7 +377,7 @@ class TamTamBot(object):
             return False, False
         if not isinstance(update, UpdateCmn):
             update = UpdateCmn(update)
-        if not update.is_cmd_response:
+        if not update.this_cmd_response:
             handler = self.get_cmd_handler(update)
             self.prev_step_delete(update.index)
         else:
@@ -393,9 +393,9 @@ class TamTamBot(object):
                 self.lgz.debug('exit from %s.' % handler)
             else:
                 self.lgz.debug('Handler %s not callable.' % handler)
-            if res and not update.is_cmd_response:
+            if update.required_cmd_response and not update.this_cmd_response:
                 self.prev_step_write(update.index, update.update_current)
-            elif (res or res is None) and update.is_cmd_response:
+            elif update.this_cmd_response and (res or res is None) or not update.this_cmd_response:
                 self.prev_step_delete(update.index)
         else:
             res = False
@@ -456,19 +456,23 @@ class TamTamBot(object):
         # type: (UpdateCmn) -> bool
         if not (update.chat_type in [ChatType.DIALOG]):
             return False
-        if not update.is_cmd_response:  # Ответ текстом не ожидается
+        if not update.this_cmd_response:  # Прямой вызов команды
             return bool(
                 self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
             )
+        else:  # Текстовый ответ команде не предусмотрен
+            pass
 
     def cmd_handler_menu(self, update):
         # type: (UpdateCmn) -> bool
         if not (update.chat_type in [ChatType.DIALOG]):
             return False
-        if not update.is_cmd_response:  # Ответ текстом не ожидается
+        if not update.this_cmd_response:  # Прямой вызов команды
             return bool(
                 self.view_main_menu(update)
             )
+        else:  # Текстовый ответ команде не предусмотрен
+            pass
 
     # Обработка команды смены языка
     def cmd_handler_set_language(self, update):
@@ -482,13 +486,13 @@ class TamTamBot(object):
             return False
 
         self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s, update.is_cmd_response=%s' % (
-            update.chat_id, update.user_id, update.user_name, update.is_cmd_response))
+            update.chat_id, update.user_id, update.user_name, update.this_cmd_response))
 
         languages = []
 
         for k, v in self.languages_dict.items():
             languages.append(CallbackButtonCmd(v, 'set_language', {'lang': k}, Intent.DEFAULT, bot_username=self.username))
-        if not update.is_cmd_response:  # Обработка самой команды
+        if not update.this_cmd_response:  # Прямой вызов команды
             if not isinstance(update.cmd_args, dict):
                 buttons = self.get_buttons(languages, 'vertical')
                 return bool(
@@ -500,13 +504,15 @@ class TamTamBot(object):
                 return bool(
                     self.msg.send_message(NewMessageBody('Установлен язык бота (bot language configured): %s' % self.languages_dict[lc], link=update.link), chat_id=update.chat_id)
                 )
+        else:  # Текстовый ответ команде не предусмотрен
+            pass
 
     # Выводит список чатов пользователя, в которых он админ, к которым подключен бот с админскими правами
     def cmd_handler_list_all_chats(self, update):
         # type: (UpdateCmn) -> bool
         if not (update.chat_type in [ChatType.DIALOG]):
             return False
-        if not update.is_cmd_response:  # Ответ текстом не ожидается
+        if not update.this_cmd_response:  # Прямой вызов команды
             if not update.chat_id:
                 return False
             self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
@@ -525,6 +531,8 @@ class TamTamBot(object):
             return bool(
                 self.msg.send_message(mb, user_id=update.user_id)
             )
+        else:  # Текстовый ответ команде не предусмотрен
+            pass
 
     def polling(self):
         self.lgz.info('Start. Press Ctrl-Break for stopping.')
@@ -820,7 +828,7 @@ class TamTamBot(object):
         if isinstance(update_previous, Update):
             self.lgz.debug('Command answer detected (%s).' % update.index)
             # Если это ответ на вопрос команды, то установить соответствующий признак и снова вызвать команду
-            update.is_cmd_response = True
+            update.this_cmd_response = True
             update.update_previous = update_previous
             update_previous = UpdateCmn(update_previous)
             res_w_m = None

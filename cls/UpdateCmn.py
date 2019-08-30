@@ -24,7 +24,8 @@ class UpdateCmn(object):
         self.user_id_recipient = None
         self.chat_id = None
         self.chat_type = None
-        self.is_cmd_response = False
+        self.this_cmd_response = False
+        self.required_cmd_response = False
         self.update_previous = None
         self.recipient = None
 
