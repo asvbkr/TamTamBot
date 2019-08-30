@@ -76,15 +76,28 @@ class UpdateCmn(object):
                 self.user_id = update.message.sender.user_id
                 self.user_name = update.message.sender.name
 
+            # Обработка аргументов команды типа /get_ids 1 2 7
+            # Поддерживается два формата:
+            # * update.cmd_arg['l1']['c1'] - строка1, колонка 1
+            # * update.cmd_arg['c_parts'] - список строк, каждая из которых содержит список колонок
+            # Разделение на строки и колоонки производится по реальным строкам и элементам в строке, разделённых пробелом
             f = re.match(r'(/\w+) (.+)', self.cmd, re.DOTALL)
             if f:
                 self.cmd = f.group(1)
-                self.cmd_args = {}
+                self.cmd_args = self.cmd_args or {}
                 i = 1
                 for l in f.group(2).split('\n'):
+                    if not isinstance(self.cmd_args.get('c_parts'), list):
+                        self.cmd_args['c_parts'] = [[]]
+                    else:
+                        self.cmd_args['c_parts'].append([])
+
                     ind_l = 'l%s' % i
                     j = 1
                     for c in l.split(' '):
+                        if len(c.strip()) > 0:
+                            self.cmd_args['c_parts'][-1].append(c)
+
                         ind_c = 'c%s' % j
                         if not self.cmd_args.get(ind_l):
                             self.cmd_args[ind_l] = {}
