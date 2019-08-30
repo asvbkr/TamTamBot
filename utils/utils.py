@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 import inspect
+import os
 import re
 import time
 from datetime import datetime
@@ -65,6 +66,19 @@ def int_str_to_bool(string, default=False):
             value = bool(int_str)
 
     return value
+
+
+def get_environ_int(np, default=None):
+    # type: (str, int) -> int
+    s = os.environ.get(np)
+    res = None
+    if s is None:
+        res = default
+    else:
+        res = str_to_int(s)
+        if res is None:
+            res = default
+    return res
 
 
 class ExtList(list):

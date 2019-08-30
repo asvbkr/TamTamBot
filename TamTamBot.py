@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import traceback
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from threading import Thread
 from time import sleep
 
@@ -26,13 +27,14 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 from .utils.lng import get_text as _, translation_activate
-from .utils.utils import str_to_int
+from .utils.utils import str_to_int, get_environ_int
 
 
 class TamTamBotException(Exception):
     pass
 
 
+# noinspection SqlNoDataSourceInspection
 class TamTamBot(object):
     _work_threads_max_count = None
     threads = []
@@ -46,7 +48,9 @@ class TamTamBot(object):
         formatter = logging.Formatter('%(asctime)s - %(name)s[%(threadName)s-%(thread)d] - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
         self.lgz = logging.getLogger('%s' % self.__class__.__name__)
 
-        fh = logging.FileHandler("bots_%s.log" % self.__class__.__name__, encoding='UTF-8')
+        log_file_max_bytes = get_environ_int('LOGGING_FILE_MAX_BYTES', 10485760)
+        log_file_backup_count = get_environ_int('LOGGING_FILE_BACKUP_COUNT', 10)
+        fh = RotatingFileHandler("bots_%s.log" % self.__class__.__name__, mode='a', maxBytes=log_file_max_bytes, backupCount=log_file_backup_count, encoding='UTF-8')
         fh.setFormatter(formatter)
         self.lgz.addHandler(fh)
 
@@ -301,6 +305,7 @@ class TamTamBot(object):
 
     @property
     def conn_srv(self):
+        # noinspection PyUnresolvedReferences
         return sqlite3.connect(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ttb.sqlite3'))
 
     def db_prepare(self):
