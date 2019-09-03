@@ -23,7 +23,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch
+    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
 from .utils.lng import get_text as _, translation_activate
@@ -43,6 +43,8 @@ class TamTamBot(object):
 
     def __init__(self):
         # Общие настройки - логирование, кодировка и т.п.
+
+        self.waiting_msg = False  # Выводить вейтерное сообщение
 
         # noinspection SpellCheckingInspection
         formatter = logging.Formatter('%(asctime)s - %(name)s[%(threadName)s-%(thread)d] - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
@@ -401,8 +403,8 @@ class TamTamBot(object):
             res = False
         return handler_exists, res
 
-    def process_command_(self, update, waiting_msg=True):
-        # type: (Update, bool) -> bool
+    def process_command(self, update):
+        # type: (Update) -> bool
         """
         Для обработки команд необходимо создание в наследниках методов с именем "cmd_handler_%s", где %s - имя команды.
         Например, для команды "start" см. ниже метод cmd_handler_start
@@ -425,7 +427,7 @@ class TamTamBot(object):
             # self.lgz.w('cmd="%s"; user_id=%s' % (cmd, user_id))
             self.lgz.debug('cmd="%s"; chat_id=%s; user_id=%s' % (update.cmd, update.chat_id, update.user_id))
 
-            if waiting_msg and chat_type == ChatType.DIALOG:
+            if self.waiting_msg and chat_type == ChatType.DIALOG:
                 msg_t = (('{%s} ' % self.title) + _('Wait for process your request (%s)...') % cmd) + self.SERVICE_STR_SEQUENCE
                 res_w_m = self.msg.send_message(NewMessageBody(msg_t), chat_id=chat_id)
 
@@ -447,10 +449,6 @@ class TamTamBot(object):
         finally:
             if isinstance(res_w_m, SendMessageResult):
                 self.msg.delete_message(res_w_m.message.body.mid)
-
-    def process_command(self, update):
-        # type: (Update) -> bool
-        return self.process_command_(update)
 
     def cmd_handler_start(self, update):
         # type: (UpdateCmn) -> bool
@@ -814,11 +812,18 @@ class TamTamBot(object):
 
     def before_handle_update(self, update):
         # type: (Update) -> None
-        pass
+        if isinstance(update, MessageCreatedUpdate):
+            update = UpdateCmn(update)
+            if update.chat_type in [ChatType.DIALOG]:
+                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
+                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_ON))
 
     def after_handle_update(self, update):
         # type: (Update) -> None
-        pass
+        if isinstance(update, MessageCreatedUpdate):
+            update = UpdateCmn(update)
+            if update.chat_type in [ChatType.DIALOG]:
+                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_OFF))
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
@@ -833,7 +838,7 @@ class TamTamBot(object):
             update_previous = UpdateCmn(update_previous)
             res_w_m = None
             try:
-                if update.chat_type == ChatType.DIALOG:
+                if self.waiting_msg and update.chat_type == ChatType.DIALOG:
                     msg_t = (('{%s} ' % self.title) + _('Wait for process your request (%s)...') % update_previous.cmd) + self.SERVICE_STR_SEQUENCE
                     res_w_m = self.msg.send_message(NewMessageBody(msg_t), chat_id=update.chat_id)
 
