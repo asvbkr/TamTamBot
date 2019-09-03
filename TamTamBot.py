@@ -812,18 +812,16 @@ class TamTamBot(object):
 
     def before_handle_update(self, update):
         # type: (Update) -> None
-        if isinstance(update, MessageCreatedUpdate):
-            update = UpdateCmn(update)
-            if update.chat_type in [ChatType.DIALOG]:
-                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
-                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_ON))
+        update = UpdateCmn(update)
+        if update.chat_type in [ChatType.DIALOG]:
+            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
+            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_ON))
 
     def after_handle_update(self, update):
         # type: (Update) -> None
-        if isinstance(update, MessageCreatedUpdate):
-            update = UpdateCmn(update)
-            if update.chat_type in [ChatType.DIALOG]:
-                self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_OFF))
+        update = UpdateCmn(update)
+        if update.chat_type in [ChatType.DIALOG]:
+            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_OFF))
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
