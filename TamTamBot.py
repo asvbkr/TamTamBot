@@ -25,7 +25,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction
 from openapi_client.rest import ApiException, RESTResponse
-from .cls import ChatExt, UpdateCmn, CallbackButtonCmd
+from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
 from .utils.utils import str_to_int, get_environ_int
 
@@ -38,6 +38,7 @@ class TamTamBotException(Exception):
 class TamTamBot(object):
     _work_threads_max_count = None
     threads = []
+    chats_action = {}
 
     SERVICE_STR_SEQUENCE = chr(8203) + chr(8203) + chr(8203)
 
@@ -670,6 +671,17 @@ class TamTamBot(object):
         # type: (Update) -> bytes
         return self.serialize_open_api_object(update)
 
+    def action_repeat(self, chat_id, action_name, on=True):
+        # type: (int, str, bool) -> None
+        if chat_id in self.chats_action:
+            t = self.chats_action[chat_id]
+        else:
+            t = ChatActionRequestRepeater(self.chats, chat_id)
+            self.chats_action[chat_id] = t
+            t.start()
+        if t:
+            t.action_switch(action_name, on)
+
     # Обработка тела запроса
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
@@ -699,6 +711,11 @@ class TamTamBot(object):
                 self.send_error_message(update)
                 self.send_admin_message(err, update)
 
+    def before_handle_request_body(self, request_body):
+        # type: (bytes) -> bytes
+        if self:
+            return request_body
+
     # Обработка тела запроса
     def handle_request_body_(self, request_body):
         # type: (bytes) -> None
@@ -724,15 +741,18 @@ class TamTamBot(object):
         finally:
             self.lgz.debug('Thread exited. Threads count=%s' % len(TamTamBot.threads))
 
-    def before_handle_request_body(self, request_body):
-        # type: (bytes) -> bytes
-        if self:
-            return request_body
-
     def after_handle_request_body(self, incoming_data):
         # type: (object) -> object
         if self:
             return incoming_data
+
+    def before_handle_update(self, update):
+        # type: (Update) -> None
+        update = UpdateCmn(update)
+        if update.chat_type in [ChatType.DIALOG]:
+            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
+            # Запускаем повторитель события
+            self.action_repeat(update.chat_id, SenderAction.TYPING_ON)
 
     def handle_update(self, update):
         # type: (Update) -> bool
@@ -741,86 +761,83 @@ class TamTamBot(object):
             self.lgz.debug(' -> %s' % type(update))
             language = self.get_user_language_by_update(update)
             translation_activate(language)
-            self.before_handle_update(update)
+            try:
+                self.before_handle_update(update)
 
-            is_command = False
-            cmd_prefix = '@%s /' % self.info.username
-            if isinstance(update, MessageCreatedUpdate):
-                if update.message.body.text.startswith(cmd_prefix):
-                    is_command = True
-                    update.message.body.text = str(update.message.body.text).replace(cmd_prefix, '/')
-                elif update.message.body.text.startswith('/'):
-                    if update.message.recipient.chat_type == ChatType.DIALOG:
+                is_command = False
+                cmd_prefix = '@%s /' % self.info.username
+                if isinstance(update, MessageCreatedUpdate):
+                    if update.message.body.text.startswith(cmd_prefix):
                         is_command = True
+                        update.message.body.text = str(update.message.body.text).replace(cmd_prefix, '/')
+                    elif update.message.body.text.startswith('/'):
+                        if update.message.recipient.chat_type == ChatType.DIALOG:
+                            is_command = True
 
-            if is_command:
-                self.lgz.debug('entry to %s' % self.process_command)
-                res = self.process_command(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
-            elif isinstance(update, MessageCreatedUpdate):
-                if not self.update_is_service(UpdateCmn(update)):
-                    self.lgz.debug('entry to %s' % self.handle_message_created_update)
-                    res = self.handle_message_created_update(update)
-                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_created_update, res))
+                if is_command:
+                    self.lgz.debug('entry to %s' % self.process_command)
+                    res = self.process_command(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
+                elif isinstance(update, MessageCreatedUpdate):
+                    if not self.update_is_service(UpdateCmn(update)):
+                        self.lgz.debug('entry to %s' % self.handle_message_created_update)
+                        res = self.handle_message_created_update(update)
+                        self.lgz.debug('exit from %s with result=%s' % (self.handle_message_created_update, res))
+                    else:
+                        res = False
+                        self.lgz.debug('This update is service - passed')
+                elif isinstance(update, MessageCallbackUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_message_callback_update)
+                    res = self.handle_message_callback_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_callback_update, res))
+                elif isinstance(update, MessageEditedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_message_edited_update)
+                    res = self.handle_message_edited_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_edited_update, res))
+                elif isinstance(update, MessageRemovedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_message_removed_update)
+                    res = self.handle_message_removed_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_removed_update, res))
+                elif isinstance(update, BotStartedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_bot_started_update)
+                    res = self.handle_bot_started_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_started_update, res))
+                elif isinstance(update, BotAddedToChatUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_bot_added_to_chat_update)
+                    res = self.handle_bot_added_to_chat_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_added_to_chat_update, res))
+                elif isinstance(update, BotRemovedFromChatUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_bot_removed_from_chat_update)
+                    res = self.handle_bot_removed_from_chat_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_removed_from_chat_update, res))
+                elif isinstance(update, UserAddedToChatUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_user_added_to_chat_update)
+                    res = self.handle_user_added_to_chat_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_user_added_to_chat_update, res))
+                elif isinstance(update, UserRemovedFromChatUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_user_removed_from_chat_update)
+                    res = self.handle_user_removed_from_chat_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_user_removed_from_chat_update, res))
+                elif isinstance(update, ChatTitleChangedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_chat_title_changed_update)
+                    res = self.handle_chat_title_changed_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_chat_title_changed_update, res))
                 else:
                     res = False
-                    self.lgz.debug('This update is service - passed')
-            elif isinstance(update, MessageCallbackUpdate):
-                self.lgz.debug('entry to %s' % self.handle_message_callback_update)
-                res = self.handle_message_callback_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_callback_update, res))
-            elif isinstance(update, MessageEditedUpdate):
-                self.lgz.debug('entry to %s' % self.handle_message_edited_update)
-                res = self.handle_message_edited_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_edited_update, res))
-            elif isinstance(update, MessageRemovedUpdate):
-                self.lgz.debug('entry to %s' % self.handle_message_removed_update)
-                res = self.handle_message_removed_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_message_removed_update, res))
-            elif isinstance(update, BotStartedUpdate):
-                self.lgz.debug('entry to %s' % self.handle_bot_started_update)
-                res = self.handle_bot_started_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_started_update, res))
-            elif isinstance(update, BotAddedToChatUpdate):
-                self.lgz.debug('entry to %s' % self.handle_bot_added_to_chat_update)
-                res = self.handle_bot_added_to_chat_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_added_to_chat_update, res))
-            elif isinstance(update, BotRemovedFromChatUpdate):
-                self.lgz.debug('entry to %s' % self.handle_bot_removed_from_chat_update)
-                res = self.handle_bot_removed_from_chat_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_bot_removed_from_chat_update, res))
-            elif isinstance(update, UserAddedToChatUpdate):
-                self.lgz.debug('entry to %s' % self.handle_user_added_to_chat_update)
-                res = self.handle_user_added_to_chat_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_user_added_to_chat_update, res))
-            elif isinstance(update, UserRemovedFromChatUpdate):
-                self.lgz.debug('entry to %s' % self.handle_user_removed_from_chat_update)
-                res = self.handle_user_removed_from_chat_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_user_removed_from_chat_update, res))
-            elif isinstance(update, ChatTitleChangedUpdate):
-                self.lgz.debug('entry to %s' % self.handle_chat_title_changed_update)
-                res = self.handle_chat_title_changed_update(update)
-                self.lgz.debug('exit from %s with result=%s' % (self.handle_chat_title_changed_update, res))
-            else:
-                res = False
-            self.after_handle_update(update)
+            finally:
+                self.after_handle_update(update)
             return res
         except Exception as e:
             self.lgz.exception('Exception')
             update = UpdateCmn(update)
             self.send_error_message(update, e)
 
-    def before_handle_update(self, update):
-        # type: (Update) -> None
-        update = UpdateCmn(update)
-        if update.chat_type in [ChatType.DIALOG]:
-            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
-            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_ON))
-
     def after_handle_update(self, update):
         # type: (Update) -> None
         update = UpdateCmn(update)
         if update.chat_type in [ChatType.DIALOG]:
+            # Отключаем повторитель события
+            self.action_repeat(update.chat_id, SenderAction.TYPING_ON, False)
             self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_OFF))
 
     def handle_message_created_update(self, update):
