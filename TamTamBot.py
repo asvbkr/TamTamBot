@@ -936,7 +936,7 @@ class TamTamBot(object):
 
     # Определяет доступность чата для пользователя
     def chat_is_available(self, chat, user_id):
-        # type: (Chat, int) -> ChatExt
+        # type: (Chat, int) -> ChatExt or None
         if isinstance(chat, Chat):
             if chat.status in [ChatStatus.ACTIVE]:
                 members = None
@@ -947,9 +947,15 @@ class TamTamBot(object):
                         if isinstance(bot_user, ChatMember):
                             # Только если бот админ
                             if bot_user.is_admin:
-                                members = self.get_chat_members(chat.chat_id, [user_id])
+                                try:
+                                    members = self.get_chat_members(chat.chat_id, [user_id])
+                                except ApiException as err:
+                                    if err.status != 404:
+                                        raise
+                                    self.lgz.debug('chat => chat_id=%(id)s - pass, because user %(user_id)s not found' % {'id': chat.chat_id, 'user_id': user_id})
                             else:
                                 self.lgz.debug('chat => chat_id=%(id)s - pass, because bot not admin' % {'id': chat.chat_id})
+                                return None
                 except ApiException as err:
                     if err.status != 403:
                         raise
