@@ -1162,7 +1162,7 @@ class TamTamBot(object):
                 return res_msg
             except ApiException as e:
                 self.lgz.debug('Warning: status:%(status)s; reason:%(reason)s; body:%(body)s' % {'status': e.status, 'reason': e.reason, 'body': e.body})
-                if rpt >= max_retry or e.status != 400:
+                if rpt >= max_retry or not (e.status == 400 and e.body.find('"code":"attachment.not.ready"') >= 0):
                     raise
                 sleep(sl_time)
 
