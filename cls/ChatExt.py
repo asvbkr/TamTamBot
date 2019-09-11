@@ -24,6 +24,8 @@ class ChatExt(object):
             link_s = ' (%s)' % self.chat.link
         else:
             link_s = ''
+        if self.chat_user_name:
+            link_s = ' (@%s)' % self.chat_user_name
         return '%s%s' % (self.chat.title if self.chat.title else '', link_s)
 
     @property
@@ -36,6 +38,15 @@ class ChatExt(object):
             else:
                 chat_name = 'unnamed'
         return '%s <%s>' % (self.chat_type(self.chat.type), chat_name)
+
+    @property
+    def chat_user_name(self):
+        user_name = ''
+        if self.chat.link:
+            tt_address = 'https://tt.me/'
+            if not self.chat.link.startswith('%sjoin/' % tt_address):
+                user_name = self.chat.link.replace('%s' % tt_address, '')
+        return user_name
 
     @staticmethod
     def chat_type(key):
