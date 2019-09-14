@@ -42,7 +42,7 @@ class CallbackButtonCmd(CallbackButton):
 
     @property
     def cmd_args(self):
-        # type: () -> str
+        # type: () -> dict
         return self._cmd_args
 
     @cmd_args.setter

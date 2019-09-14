@@ -20,6 +20,13 @@ class ChatExt(object):
 
     @property
     def title(self):
+        link_s = ''
+        if self.chat_user_name:
+            link_s = ' (@%s)' % self.chat_user_name
+        return '%s%s' % (self.chat.title if self.chat.title else '', link_s)
+
+    @property
+    def title_ext(self):
         if self.chat.link:
             link_s = ' (%s)' % self.chat.link
         else:
@@ -28,16 +35,25 @@ class ChatExt(object):
             link_s = ' (@%s)' % self.chat_user_name
         return '%s%s' % (self.chat.title if self.chat.title else '', link_s)
 
-    @property
-    def chat_name(self):
-        # type: () -> str
-        chat_name = self.title
+    def get_chat_name(self, title):
+        # type: (str) -> str
+        chat_name = title
         if not chat_name:
             if self.chat.type == ChatType.DIALOG:
                 chat_name = self.this_dialog_name or _('current bot (№%s)' % self.chat.chat_id)
             else:
                 chat_name = 'unnamed'
         return '%s <%s>' % (self.chat_type(self.chat.type), chat_name)
+
+    @property
+    def chat_name(self):
+        # type: () -> str
+        return self.get_chat_name(self.title)
+
+    @property
+    def chat_name_ext(self):
+        # type: () -> str
+        return self.get_chat_name(self.title_ext)
 
     @property
     def chat_user_name(self):
