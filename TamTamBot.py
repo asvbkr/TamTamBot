@@ -23,7 +23,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction
+    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -934,6 +934,13 @@ class TamTamBot(object):
                 break
         return m_dict
 
+    # Определяет разрешённость чата
+    def chat_is_allowed(self, chat_ext):
+        # type: (ChatExt) -> bool
+        if isinstance(chat_ext, ChatExt):
+            ap = chat_ext.admin_permissions.get(self.user_id)
+            return ap and ChatAdminPermission.WRITE in ap and ChatAdminPermission.READ_ALL_MESSAGES in ap
+
     # Определяет доступность чата для пользователя
     def chat_is_available(self, chat, user_id):
         # type: (Chat, int) -> ChatExt or None
@@ -972,7 +979,7 @@ class TamTamBot(object):
                         # Вот так интересно вычисляется id диалога бота с пользователем
                         user_dialog_id = self.user_id ^ user_id
                         if chat_ext.chat.chat_id == user_dialog_id:
-                            chat_ext.admin_permissions[self.user_id] = ['write', 'read_all_messages']
+                            chat_ext.admin_permissions[self.user_id] = [ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
                         else:
                             self.lgz.debug('Exit, because dialog_id=%s not for user_id=%s' % (chat.chat_id, user_id))
                     if chat_ext.admin_permissions:
@@ -1000,7 +1007,7 @@ class TamTamBot(object):
                     self.lgz.debug('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s' %
                                    {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
                     chat_ext = self.chat_is_available(chat, user_id)
-                    if chat_ext and chat_ext.admin_permissions:
+                    if chat_ext and self.chat_is_allowed(chat_ext):
                         chats_available[chat.chat_id] = chat_ext
                         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
