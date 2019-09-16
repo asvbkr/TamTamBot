@@ -23,7 +23,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission
+    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -1180,3 +1180,21 @@ class TamTamBot(object):
         if update.chat_id and update.chat_id and update.message and update.message.body:
             res = 'mid.%016x%016x' % (update.chat_id & (2 ** 64 - 1), update.message.body.seq & (2 ** 64 - 1))
         return res
+
+    def get_messages(self, mid_list):
+        # type: ([str]) -> [Message]
+        ml = self.msg.get_messages(message_ids=mid_list)
+        if isinstance(ml, MessageList) and ml.messages:
+            return ml.messages
+
+    def get_message(self, mid):
+        # type: ([str]) -> Message
+        ml = self.get_messages([mid])
+        if ml:
+            return ml[0]
+
+    @staticmethod
+    def get_forwarded_message(message):
+        # type: (Message) -> LinkedMessage
+        if isinstance(message, Message) and isinstance(message.body, MessageBody) and isinstance(message.link, LinkedMessage) and message.link.type in [MessageLinkType.FORWARD]:
+            return message.link
