@@ -3,7 +3,7 @@ import json
 import re
 
 from TamTamBot.utils.utils import get_param_value, str_to_int
-from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User
+from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message
 
 
 class UpdateCmn(object):
@@ -131,7 +131,7 @@ class UpdateCmn(object):
             if hasattr(update, 'user_id'):
                 self.user_id = update.user_id
 
-        if hasattr(update, 'message'):
+        if hasattr(update, 'message') and isinstance(update.message, Message):
             self.message = update.message
             if hasattr(self.message, 'recipient'):
                 self.recipient = self.message.recipient
