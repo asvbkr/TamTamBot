@@ -863,11 +863,13 @@ class TamTamBot(object):
                     self.msg.delete_message(res_w_m.message.body.mid)
             return res
         self.lgz.debug('Trivial message. Not commands answer (%s).' % update.index)
-        return self.receive_text(update)
+        return self.receive_message(update)
 
-    def receive_text(self, update):
+    def receive_message(self, update):
         # type: (UpdateCmn) -> bool
         pass
+
+    receive_text = receive_message
 
     def handle_message_callback_update(self, update):
         # type: (MessageCallbackUpdate) -> bool
