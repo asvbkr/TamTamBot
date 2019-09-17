@@ -1209,9 +1209,10 @@ class TamTamBot(object):
         if ml:
             return ml[0]
 
-    @staticmethod
-    def get_forwarded_message(message):
-        # type: (Message) -> LinkedMessage
+    def get_forwarded_message(self, message):
+        # type: (Message or str) -> LinkedMessage
+        if isinstance(message, str):
+            message = self.get_message(message)
         if isinstance(message, Message) and isinstance(message.body, MessageBody) and isinstance(message.link, LinkedMessage) and message.link.type in [MessageLinkType.FORWARD]:
             return message.link
 
