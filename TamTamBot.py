@@ -1174,11 +1174,27 @@ class TamTamBot(object):
                 sleep(sl_time)
 
     @staticmethod
-    def get_old_mid(update):
-        # type: (UpdateCmn) -> str
+    def get_old_mid(prm):
+        # type: (UpdateCmn or Message) -> str
         res = None
-        if update.chat_id and update.chat_id and update.message and update.message.body:
-            res = 'mid.%016x%016x' % (update.chat_id & (2 ** 64 - 1), update.message.body.seq & (2 ** 64 - 1))
+        chat_id = None
+        body_seq = None
+
+        if isinstance(prm, UpdateCmn):
+            update = prm
+            if update.chat_id and update.chat_id and update.message and update.message.body:
+                chat_id = update.chat_id
+                body_seq = update.message.body.seq
+                res = 'mid.%016x%016x' % (update.chat_id & (2 ** 64 - 1), update.message.body.seq & (2 ** 64 - 1))
+        elif isinstance(prm, Message):
+            message = prm
+            if message and message.body:
+                chat_id = message.recipient.chat_id
+                body_seq = message.body.seq
+
+        if chat_id and body_seq:
+            res = 'mid.%016x%016x' % (chat_id & (2 ** 64 - 1), body_seq & (2 ** 64 - 1))
+
         return res
 
     def get_messages(self, mid_list):
@@ -1198,3 +1214,9 @@ class TamTamBot(object):
         # type: (Message) -> LinkedMessage
         if isinstance(message, Message) and isinstance(message.body, MessageBody) and isinstance(message.link, LinkedMessage) and message.link.type in [MessageLinkType.FORWARD]:
             return message.link
+
+    def get_forwarded_message_full(self, message):
+        # type: (Message) -> Message
+        lm = self.get_forwarded_message(message)
+        if isinstance(lm, LinkedMessage):
+            return self.get_message(lm.message.mid)
