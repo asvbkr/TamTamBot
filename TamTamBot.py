@@ -838,7 +838,6 @@ class TamTamBot(object):
         if update.chat_type in [ChatType.DIALOG]:
             # Отключаем повторитель события
             self.action_repeat(update.chat_id, SenderAction.TYPING_ON, False)
-            self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.TYPING_OFF))
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
