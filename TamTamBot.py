@@ -935,6 +935,26 @@ class TamTamBot(object):
                 break
         return m_dict
 
+    def get_chat_admins(self, chat_id):
+        # type: (int) -> {ChatMember}
+        marker = None
+        m_dict = {}
+        admins = []
+        while True:
+            if marker:
+                cm = self.chats.get_admins(chat_id, marker=marker)
+            else:
+                cm = self.chats.get_admins(chat_id)
+            if isinstance(cm, ChatMembersList):
+                marker = cm.marker
+                admins.extend(cm.members)
+                for c in cm.members:
+                    if isinstance(c, ChatMember):
+                        m_dict[c.user_id] = c
+            if not marker:
+                break
+        return m_dict
+
     # Определяет разрешённость чата
     def chat_is_allowed(self, chat_ext):
         # type: (ChatExt) -> bool
@@ -1011,6 +1031,63 @@ class TamTamBot(object):
                     if chat_ext and self.chat_is_allowed(chat_ext):
                         chats_available[chat.chat_id] = chat_ext
                         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
+                if not marker:
+                    break
+        return chats_available
+
+    # Формирует список чатов пользователей, в которых админы и пользователь и бот
+    def get_all_chats_with_bot_admin(self):
+        # type: ([int]) -> dict
+        marker = None
+        chats_available = {}
+        while True:
+            if marker:
+                chat_list = self.chats.get_chats(marker=marker)
+            else:
+                chat_list = self.chats.get_chats()
+            if isinstance(chat_list, ChatList):
+                marker = chat_list.marker
+                for chat in chat_list.chats:
+                    self.lgz.debug('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s' %
+                                   {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
+                    if chat.status not in [ChatStatus.ACTIVE]:
+                        continue
+
+                    admins = {}
+                    if chat.type == ChatType.DIALOG:
+                        admins[self.user_id] = ChatMember(self.user_id, 'n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                                                          permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
+                        dialog_user_id = self.user_id ^ chat.chat_id
+                        admins[dialog_user_id] = ChatMember(dialog_user_id, 'n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                                                            permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
+                    else:
+                        try:
+                            admins = self.get_chat_admins(chat.chat_id)
+                        except ApiException as err:
+                            if err.status != 403:
+                                raise
+                    bot_user = admins.get(self.user_id)
+                    if bot_user:
+                        for admin in admins.values():
+                            if admin.user_id != self.user_id:
+                                if chats_available.get(admin.user_id) is None:
+                                    chats_available[admin.user_id] = {}
+
+                                chat_ext = chats_available[admin.user_id].get(chat.chat_id)
+                                if not isinstance(chat_ext, ChatExt):
+                                    chat_ext = ChatExt(chat, self.title)
+                                    chats_available[admin.user_id][chat.chat_id] = chat_ext
+                                chat_ext.admin_permissions[self.user_id] = bot_user.permissions
+                                chat_ext.admin_permissions[admin.user_id] = admin.permissions
+                    else:
+                        self.lgz.debug('Pass, because bot (id=%s) not admin for chat_id=%s' % (chat.chat_id, self.user_id))
+                    # for user_id in user_id_list:
+                    #     if chats_available.get(user_id) is None:
+                    #         chats_available[user_id] = {}
+                    #     chat_ext = self.chat_is_available(chat, user_id)
+                    #     if chat_ext and self.chat_is_allowed(chat_ext):
+                    #         chats_available[user_id][chat.chat_id] = chat_ext
+                    #         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
                     break
         return chats_available
