@@ -360,9 +360,9 @@ class TamTamBot(object):
             buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, {'chat_id': chat.chat.chat_id}, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
-    def view_buttons_for_chats_available(self, title, cmd, user_id):
-        # type: (str, str, int) -> SendMessageResult
-        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id)
+    def view_buttons_for_chats_available(self, title, cmd, user_id, update=None):
+        # type: (str, str, int, Update) -> SendMessageResult
+        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id, update=update)
 
     def get_cmd_handler(self, update):
         if not isinstance(update, (Update, UpdateCmn)):
@@ -1097,18 +1097,21 @@ class TamTamBot(object):
                     break
         return chats_available
 
-    def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None):
-        # type: (str, list, int, int, NewMessageLink) -> SendMessageResult
+    def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None, update=None):
+        # type: (str, list, int, int, NewMessageLink, Update) -> SendMessageResult
         if buttons:
             mb = self.add_buttons_to_message_body(NewMessageBody(title, link=link), buttons)
         else:
             mb = NewMessageBody(_('No available items found.'), link=link)
         if not (user_id or chat_id):
             raise TypeError('user_id or chat_id must be defined.')
-        if chat_id:
-            return self.msg.send_message(mb, chat_id=chat_id)
+        if isinstance(update, MessageCallbackUpdate):
+            self.msg.edit_message(update.message.body.mid, mb)
         else:
-            return self.msg.send_message(mb, user_id=user_id)
+            if chat_id:
+                return self.msg.send_message(mb, chat_id=chat_id)
+            else:
+                return self.msg.send_message(mb, user_id=user_id)
 
     def get_yes_no_buttons(self, cmd_dict):
         # type: ([{}]) -> list
