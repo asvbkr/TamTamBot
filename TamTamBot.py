@@ -1040,6 +1040,7 @@ class TamTamBot(object):
         # type: ([int]) -> dict
         marker = None
         chats_available = {}
+        chats_all = {}
         while True:
             if marker:
                 chat_list = self.chats.get_chats(marker=marker)
@@ -1070,17 +1071,21 @@ class TamTamBot(object):
                     if bot_user:
                         for admin in admins.values():
                             if admin.user_id != self.user_id:
-                                if chats_available.get(admin.user_id) is None:
-                                    chats_available[admin.user_id] = {}
-
-                                chat_ext = chats_available[admin.user_id].get(chat.chat_id)
+                                # chat_ext = chats_available[admin.user_id].get(chat.chat_id)
+                                chat_ext = chats_all.get(chat.chat_id)
                                 if not isinstance(chat_ext, ChatExt):
                                     chat_ext = ChatExt(chat, self.title)
-                                    chats_available[admin.user_id][chat.chat_id] = chat_ext
+                                    chats_all[chat.chat_id] = chat_ext
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
                                 chat_ext.admin_permissions[admin.user_id] = admin.permissions
+
+                                if chat_ext and self.chat_is_allowed(chat_ext):
+                                    if chats_available.get(admin.user_id) is None:
+                                        chats_available[admin.user_id] = {}
+
+                                    chats_available[admin.user_id][chat.chat_id] = chat_ext
                     else:
-                        self.lgz.debug('Pass, because bot (id=%s) not admin for chat_id=%s' % (chat.chat_id, self.user_id))
+                        self.lgz.debug('Pass, because for chat_id=%s bot (id=%s) is not admin' % (chat.chat_id, self.user_id))
                     # for user_id in user_id_list:
                     #     if chats_available.get(user_id) is None:
                     #         chats_available[user_id] = {}
