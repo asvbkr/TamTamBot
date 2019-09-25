@@ -62,7 +62,7 @@ def int_str_to_bool(string, default=False):
     value = default
     if string is not None:
         int_str = str_to_int(string.strip())
-        if string and int_str:
+        if string and int_str is not None:
             value = bool(int_str)
 
     return value
@@ -71,7 +71,6 @@ def int_str_to_bool(string, default=False):
 def get_environ_int(np, default=None):
     # type: (str, int) -> int
     s = os.environ.get(np)
-    res = None
     if s is None:
         res = default
     else:
