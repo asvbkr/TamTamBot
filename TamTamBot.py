@@ -101,7 +101,7 @@ class TamTamBot(object):
             self.user_id = self.info.user_id
             self.name = self.info.name
             self.username = self.info.username
-            self.title = _('bot @%(username)s (%(name)s)') % {'username': self.username, 'name': self.name}
+            self.title = _('bot https://tt.me/%(username)s (@%(username)s) (%(name)s)') % {'username': self.username, 'name': self.name}
         else:
             self.user_id = None
             self.name = None
@@ -113,6 +113,8 @@ class TamTamBot(object):
         self.prev_step_table_name = 'tamtambot_prev_step'
         self.user_prop_table_name = 'tamtambot_user_prop'
         self.db_prepare()
+
+        self.lgz.debug('%s inited.' % self.title)
 
     @property
     def about(self):
@@ -360,9 +362,9 @@ class TamTamBot(object):
             buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, {'chat_id': chat.chat.chat_id}, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
-    def view_buttons_for_chats_available(self, title, cmd, user_id, update=None):
-        # type: (str, str, int, Update) -> SendMessageResult
-        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id, update=update)
+    def view_buttons_for_chats_available(self, title, cmd, user_id, link=None, update=None):
+        # type: (str, str, int, NewMessageLink, Update) -> SendMessageResult
+        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id, link=link, update=update)
 
     def get_cmd_handler(self, update):
         if not isinstance(update, (Update, UpdateCmn)):
