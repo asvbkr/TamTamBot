@@ -958,8 +958,8 @@ class TamTamBot(object):
         return m_dict
 
     # Определяет разрешённость чата
-    def chat_is_allowed(self, chat_ext):
-        # type: (ChatExt) -> bool
+    def chat_is_allowed(self, chat_ext, user_id=None):
+        # type: (ChatExt, int) -> bool
         if isinstance(chat_ext, ChatExt):
             ap = chat_ext.admin_permissions.get(self.user_id)
             return ap and ChatAdminPermission.WRITE in ap and ChatAdminPermission.READ_ALL_MESSAGES in ap
@@ -996,6 +996,7 @@ class TamTamBot(object):
                         if current_user and current_user.is_admin:
                             if bot_user:
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
+                                chat_ext.admin_permissions[user_id] = current_user.permissions
                             else:
                                 self.lgz.debug('Pass, because bot with id=%s not found into chat %s members list' % (self.user_id, chat.chat_id))
                     elif chat.type == ChatType.DIALOG:
@@ -1003,6 +1004,7 @@ class TamTamBot(object):
                         user_dialog_id = self.user_id ^ user_id
                         if chat_ext.chat.chat_id == user_dialog_id:
                             chat_ext.admin_permissions[self.user_id] = [ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
+                            chat_ext.admin_permissions[user_id] = [ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
                         else:
                             self.lgz.debug('Exit, because dialog_id=%s not for user_id=%s' % (chat.chat_id, user_id))
                     if chat_ext.admin_permissions:
@@ -1030,7 +1032,7 @@ class TamTamBot(object):
                     self.lgz.debug('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s' %
                                    {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
                     chat_ext = self.chat_is_available(chat, user_id)
-                    if chat_ext and self.chat_is_allowed(chat_ext):
+                    if chat_ext and self.chat_is_allowed(chat_ext, user_id):
                         chats_available[chat.chat_id] = chat_ext
                         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
@@ -1081,20 +1083,13 @@ class TamTamBot(object):
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
                                 chat_ext.admin_permissions[admin.user_id] = admin.permissions
 
-                                if chat_ext and self.chat_is_allowed(chat_ext):
+                                if chat_ext and self.chat_is_allowed(chat_ext, admin.user_id):
                                     if chats_available.get(admin.user_id) is None:
                                         chats_available[admin.user_id] = {}
 
                                     chats_available[admin.user_id][chat.chat_id] = chat_ext
                     else:
                         self.lgz.debug('Pass, because for chat_id=%s bot (id=%s) is not admin' % (chat.chat_id, self.user_id))
-                    # for user_id in user_id_list:
-                    #     if chats_available.get(user_id) is None:
-                    #         chats_available[user_id] = {}
-                    #     chat_ext = self.chat_is_available(chat, user_id)
-                    #     if chat_ext and self.chat_is_allowed(chat_ext):
-                    #         chats_available[user_id][chat.chat_id] = chat_ext
-                    #         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
                     break
         return chats_available
