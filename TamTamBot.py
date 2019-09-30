@@ -964,9 +964,25 @@ class TamTamBot(object):
             ap = chat_ext.admin_permissions.get(self.user_id)
             return ap and ChatAdminPermission.WRITE in ap and ChatAdminPermission.READ_ALL_MESSAGES in ap
 
+    @staticmethod
+    def adm_permission_add(ce_ap, adm_perm):
+        # type: (list, str) -> None
+        if ce_ap and adm_perm not in ce_ap:
+            ce_ap.append(adm_perm)
+
+    @staticmethod
+    def adm_perm_correct(ce_ap):
+        if ce_ap and ChatAdminPermission.ADD_ADMINS in ce_ap:
+            TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.ADD_REMOVE_MEMBERS)
+            TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.READ_ALL_MESSAGES)
+            TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.WRITE)
+            TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.CHANGE_CHAT_INFO)
+            TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.PIN_MESSAGE)
+
     # Определяет доступность чата для пользователя
     def chat_is_available(self, chat, user_id):
         # type: (Chat, int) -> ChatExt or None
+
         if isinstance(chat, Chat):
             if chat.status in [ChatStatus.ACTIVE]:
                 members = None
@@ -996,7 +1012,9 @@ class TamTamBot(object):
                         if current_user and current_user.is_admin:
                             if bot_user:
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
+                                self.adm_perm_correct(chat_ext.admin_permissions[self.user_id])
                                 chat_ext.admin_permissions[user_id] = current_user.permissions
+                                self.adm_perm_correct(chat_ext.admin_permissions[user_id])
                             else:
                                 self.lgz.debug('Pass, because bot with id=%s not found into chat %s members list' % (self.user_id, chat.chat_id))
                     elif chat.type == ChatType.DIALOG:
@@ -1081,7 +1099,9 @@ class TamTamBot(object):
                                     chat_ext = ChatExt(chat, self.title)
                                     chats_all[chat.chat_id] = chat_ext
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
+                                self.adm_perm_correct(chat_ext.admin_permissions[self.user_id])
                                 chat_ext.admin_permissions[admin.user_id] = admin.permissions
+                                self.adm_perm_correct(chat_ext.admin_permissions[admin.user_id])
 
                                 if chat_ext and self.chat_is_allowed(chat_ext, admin.user_id):
                                     if chats_available.get(admin.user_id) is None:
