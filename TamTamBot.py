@@ -23,7 +23,8 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     MessageRemovedUpdate, BotAddedToChatUpdate, BotRemovedFromChatUpdate, \
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
-    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType
+    FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType, \
+    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -1324,3 +1325,28 @@ class TamTamBot(object):
         lm = self.get_forwarded_message(message)
         if isinstance(lm, LinkedMessage):
             return self.get_message(lm.message.mid)
+
+    def subscribe(self, url_list, adding=False):
+        # type:(TamTamBot, [str], bool) -> bool
+        if not url_list:
+            return False
+        if not adding:
+            res = self.subscriptions.get_subscriptions()
+            if isinstance(res, GetSubscriptionsResult):
+                for subscription in res.subscriptions:
+                    if isinstance(subscription, Subscription):
+                        res = self.subscriptions.unsubscribe(subscription.url)
+                        if isinstance(res, SimpleQueryResult) and not res.success:
+                            self.lgz.warning(f'Failed delete subscribe url={subscription.url}')
+                        elif isinstance(res, SimpleQueryResult) and res.success:
+                            self.lgz.info(f'Deleted subscribe url={subscription.url}')
+        for url in url_list:
+            wh_info = f'WebHook url={url}, version={self.conf.api_version}'
+            sb = SubscriptionRequestBody(url, version=self.conf.api_version)
+            res = self.subscriptions.subscribe(sb)
+            if isinstance(res, SimpleQueryResult) and not res.success:
+                raise TamTamBotException(res.message)
+            elif not isinstance(res, SimpleQueryResult):
+                raise TamTamBotException(f'Something went wrong when subscribing the WebHook {wh_info}')
+            self.lgz.info(f'Bot subscribed to receive updates via WebHook {wh_info}')
+        return True
