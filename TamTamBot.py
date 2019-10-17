@@ -962,6 +962,8 @@ class TamTamBot(object):
     def chat_is_allowed(self, chat_ext, user_id=None):
         # type: (ChatExt, int) -> bool
         if isinstance(chat_ext, ChatExt):
+            if user_id:
+                pass
             ap = chat_ext.admin_permissions.get(self.user_id)
             return ap and ChatAdminPermission.WRITE in ap and ChatAdminPermission.READ_ALL_MESSAGES in ap
 
@@ -1337,16 +1339,16 @@ class TamTamBot(object):
                     if isinstance(subscription, Subscription):
                         res = self.subscriptions.unsubscribe(subscription.url)
                         if isinstance(res, SimpleQueryResult) and not res.success:
-                            self.lgz.warning(f'Failed delete subscribe url={subscription.url}')
+                            self.lgz.warning('Failed delete subscribe url=%s' % subscription.url)
                         elif isinstance(res, SimpleQueryResult) and res.success:
-                            self.lgz.info(f'Deleted subscribe url={subscription.url}')
+                            self.lgz.info('Deleted subscribe url=%s' % subscription.url)
         for url in url_list:
-            wh_info = f'WebHook url={url}, version={self.conf.api_version}'
+            wh_info = 'WebHook url=%s, version=%s' % (url, self.conf.api_version)
             sb = SubscriptionRequestBody(url, version=self.conf.api_version)
             res = self.subscriptions.subscribe(sb)
             if isinstance(res, SimpleQueryResult) and not res.success:
                 raise TamTamBotException(res.message)
             elif not isinstance(res, SimpleQueryResult):
-                raise TamTamBotException(f'Something went wrong when subscribing the WebHook {wh_info}')
-            self.lgz.info(f'Bot subscribed to receive updates via WebHook {wh_info}')
+                raise TamTamBotException('Something went wrong when subscribing the WebHook %s' % wh_info)
+            self.lgz.info('Bot subscribed to receive updates via WebHook %s' % wh_info)
         return True
