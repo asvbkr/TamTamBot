@@ -586,6 +586,7 @@ class TamTamBot(object):
             res = update.message.body.text[-(len(cls.SERVICE_STR_SEQUENCE)):] == cls.SERVICE_STR_SEQUENCE
         return res
 
+    # noinspection DuplicatedCode
     def send_admin_message(self, text, update=None, exception=None, notify=True):
         # type: (str, UpdateCmn, Exception, bool) -> bool
         link = None
@@ -597,12 +598,18 @@ class TamTamBot(object):
         res = False
         now = datetime.now()
         text = ('%s(bot @%s): `%s' % (now, self.username, (text + err)))[:NewMessageBody.MAX_BODY_LENGTH]
+        text_add = ''
+        if exception and update:
+            text_add = ('%s' % update)[:NewMessageBody.MAX_BODY_LENGTH]
         if self.admins_contacts:
             mb = NewMessageBody(text, link=link, notify=notify)
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
                     try:
                         res_s = self.msg.send_message(mb, chat_id=el)
+                        if isinstance(res_s, SendMessageResult) and text_add:
+                            mb_add = NewMessageBody(text_add, link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify)
+                            self.msg.send_message(mb_add, chat_id=el)
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
@@ -611,6 +618,9 @@ class TamTamBot(object):
                 for el in self.admins_contacts.get('users'):
                     try:
                         res_s = self.msg.send_message(mb, user_id=el)
+                        if isinstance(res_s, SendMessageResult) and text_add:
+                            mb_add = NewMessageBody(text_add, link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify)
+                            self.msg.send_message(mb_add, user_id=el)
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
