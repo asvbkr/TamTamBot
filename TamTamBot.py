@@ -600,7 +600,7 @@ class TamTamBot(object):
         text = ('%s(bot @%s): `%s' % (now, self.username, (text + err)))[:NewMessageBody.MAX_BODY_LENGTH]
         text_add = ''
         if exception and update:
-            text_add = ('%s' % update.update_current)[:NewMessageBody.MAX_BODY_LENGTH]
+            text_add = ('`%s' % update.update_current)[:NewMessageBody.MAX_BODY_LENGTH]
         if self.admins_contacts:
             mb = NewMessageBody(text, link=link, notify=notify)
             if self.admins_contacts.get('chats'):
