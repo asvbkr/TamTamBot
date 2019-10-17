@@ -1237,7 +1237,7 @@ class TamTamBot(object):
             klass = None
             if item[1] == UploadType.VIDEO:
                 klass = VideoAttachmentRequest
-            elif item[1] == UploadType.PHOTO:
+            elif item[1] == UploadType.IMAGE:
                 klass = PhotoAttachmentRequest
             elif item[1] == UploadType.AUDIO:
                 klass = AudioAttachmentRequest
