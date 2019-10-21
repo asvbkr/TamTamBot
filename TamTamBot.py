@@ -1315,9 +1315,12 @@ class TamTamBot(object):
 
     def get_messages(self, mid_list):
         # type: ([str]) -> [Message]
-        ml = self.msg.get_messages(message_ids=mid_list)
-        if isinstance(ml, MessageList) and ml.messages:
-            return ml.messages
+        try:
+            ml = self.msg.get_messages(message_ids=mid_list)
+            if isinstance(ml, MessageList) and ml.messages:
+                return ml.messages
+        except ApiException:
+            pass
 
     def get_message(self, mid):
         # type: ([str]) -> Message
