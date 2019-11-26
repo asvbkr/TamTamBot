@@ -24,7 +24,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType, \
-    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody
+    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -825,6 +825,18 @@ class TamTamBot(object):
                     self.lgz.debug('entry to %s' % self.handle_chat_title_changed_update)
                     res = self.handle_chat_title_changed_update(update)
                     self.lgz.debug('exit from %s with result=%s' % (self.handle_chat_title_changed_update, res))
+                elif isinstance(update, MessageChatCreatedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_message_chat_created_update)
+                    res = self.handle_message_chat_created_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_chat_created_update, res))
+                elif isinstance(update, MessageConstructionRequest):
+                    self.lgz.debug('entry to %s' % self.handle_message_construction_request)
+                    res = self.handle_message_construction_request(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_construction_request, res))
+                elif isinstance(update, MessageConstructedUpdate):
+                    self.lgz.debug('entry to %s' % self.handle_message_constructed_update)
+                    res = self.handle_message_constructed_update(update)
+                    self.lgz.debug('exit from %s with result=%s' % (self.handle_message_constructed_update, res))
                 else:
                     res = False
             finally:
@@ -914,6 +926,18 @@ class TamTamBot(object):
 
     def handle_chat_title_changed_update(self, update):
         # type: (ChatTitleChangedUpdate) -> bool
+        pass
+
+    def handle_message_chat_created_update(self, update):
+        # type: (MessageChatCreatedUpdate) -> bool
+        pass
+
+    def handle_message_construction_request(self, update):
+        # type: (MessageConstructionRequest) -> bool
+        pass
+
+    def handle_message_constructed_update(self, update):
+        # type: (MessageConstructedUpdate) -> bool
         pass
 
     def get_chat_members(self, chat_id, user_ids=None):
