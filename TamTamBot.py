@@ -559,7 +559,7 @@ class TamTamBot(object):
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
-                        self.lgz.info('%s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+                        self.lgz.info('%s out of %s threads are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
                         while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
                             err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
                             self.lgz.debug(err)
