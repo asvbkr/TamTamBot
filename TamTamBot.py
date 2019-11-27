@@ -536,6 +536,9 @@ class TamTamBot(object):
         else:  # Текстовый ответ команде не предусмотрен
             pass
 
+    def before_polling_update_list(self):
+        pass
+
     def polling(self):
         self.lgz.info('Start. Press Ctrl-Break for stopping.')
         marker = None
@@ -556,7 +559,22 @@ class TamTamBot(object):
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
-                        self.handle_update(update)
+                        self.lgz.info('%s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+                        while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
+                            err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
+                            self.lgz.debug(err)
+                            for t in TamTamBot.threads:
+                                if not t.is_alive():
+                                    self.lgz.debug('stop %s!' % t)
+                                    t.join()
+                                    TamTamBot.threads.remove(t)
+                            self.lgz.info('After trying to release: %s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+
+                        t = Thread(target=self.handle_update, args=(update,))
+                        TamTamBot.threads.append(t)
+                        t.setDaemon(True)
+                        self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
+                        t.start()
                 else:
                     self.after_polling_update_list()
                     self.lgz.debug('No updates...')
@@ -571,12 +589,73 @@ class TamTamBot(object):
                 # raise
         self.lgz.info('Stopping')
 
-    def before_polling_update_list(self):
-        pass
-
     def after_polling_update_list(self, updated=False):
         # type: (bool) -> None
         pass
+
+    # Обработка тела запроса
+    def handle_request_body(self, request_body):
+        # type: (bytes) -> None
+        for t in TamTamBot.threads:
+            if not t.is_alive():
+                self.lgz.debug('stop %s!' % t)
+                t.join()
+                TamTamBot.threads.remove(t)
+        if len(TamTamBot.threads) < TamTamBot.work_threads_max_count():
+            t = Thread(target=self.handle_request_body_, args=(request_body,))
+            # noinspection PyBroadException
+            try:
+                TamTamBot.threads.append(t)
+                t.setDaemon(True)
+                self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
+                t.start()
+            except Exception:
+                self.lgz.exception('Exception')
+            finally:
+                self.lgz.debug('exited')
+        else:
+            err = 'Threads pool is full. The maximum number (%s) is used.' % TamTamBot.work_threads_max_count()
+            self.lgz.debug(err)
+            incoming_data = self.deserialize_update(request_body)
+            if isinstance(incoming_data, Update):
+                update = UpdateCmn(incoming_data)
+                self.send_error_message(update)
+                self.send_admin_message(err, update)
+
+    def before_handle_request_body(self, request_body):
+        # type: (bytes) -> bytes
+        if self:
+            return request_body
+
+    # Обработка тела запроса
+    def handle_request_body_(self, request_body):
+        # type: (bytes) -> None
+        incoming_data = None
+        # noinspection PyBroadException
+        try:
+            if request_body:
+                self.lgz.debug('request body:\n%s\n%s' % (request_body, request_body.decode('utf-8')))
+                request_body = self.before_handle_request_body(request_body)
+                incoming_data = self.deserialize_update(request_body)
+                if incoming_data:
+                    incoming_data = self.after_handle_request_body(incoming_data)
+                    self.lgz.debug('incoming data:\n type=%s;\n data=%s' % (type(incoming_data), incoming_data))
+                    if isinstance(incoming_data, Update):
+                        if not self.update_is_service(UpdateCmn(incoming_data)):
+                            self.handle_update(incoming_data)
+                        else:
+                            self.lgz.debug('This update is service - passed')
+        except Exception as e:
+            self.lgz.exception('Exception')
+            if isinstance(incoming_data, Update):
+                self.send_error_message(UpdateCmn(incoming_data), e)
+        finally:
+            self.lgz.debug('Thread exited. Threads count=%s' % len(TamTamBot.threads))
+
+    def after_handle_request_body(self, incoming_data):
+        # type: (object) -> object
+        if self:
+            return incoming_data
 
     @classmethod
     def update_is_service(cls, update):
@@ -684,70 +763,6 @@ class TamTamBot(object):
             t.start()
         if t:
             t.action_switch(action_name, on)
-
-    # Обработка тела запроса
-    def handle_request_body(self, request_body):
-        # type: (bytes) -> None
-        for t in TamTamBot.threads:
-            if not t.is_alive():
-                self.lgz.debug('stop %s!' % t)
-                t.join()
-                TamTamBot.threads.remove(t)
-        if len(TamTamBot.threads) < TamTamBot.work_threads_max_count():
-            t = Thread(target=self.handle_request_body_, args=(request_body,))
-            # noinspection PyBroadException
-            try:
-                TamTamBot.threads.append(t)
-                t.setDaemon(True)
-                self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
-                t.start()
-            except Exception:
-                self.lgz.exception('Exception')
-            finally:
-                self.lgz.debug('exited')
-        else:
-            err = 'Threads pool is full. The maximum number (%s) is used.' % TamTamBot.work_threads_max_count()
-            self.lgz.debug(err)
-            incoming_data = self.deserialize_update(request_body)
-            if isinstance(incoming_data, Update):
-                update = UpdateCmn(incoming_data)
-                self.send_error_message(update)
-                self.send_admin_message(err, update)
-
-    def before_handle_request_body(self, request_body):
-        # type: (bytes) -> bytes
-        if self:
-            return request_body
-
-    # Обработка тела запроса
-    def handle_request_body_(self, request_body):
-        # type: (bytes) -> None
-        incoming_data = None
-        # noinspection PyBroadException
-        try:
-            if request_body:
-                self.lgz.debug('request body:\n%s\n%s' % (request_body, request_body.decode('utf-8')))
-                request_body = self.before_handle_request_body(request_body)
-                incoming_data = self.deserialize_update(request_body)
-                if incoming_data:
-                    incoming_data = self.after_handle_request_body(incoming_data)
-                    self.lgz.debug('incoming data:\n type=%s;\n data=%s' % (type(incoming_data), incoming_data))
-                    if isinstance(incoming_data, Update):
-                        if not self.update_is_service(UpdateCmn(incoming_data)):
-                            self.handle_update(incoming_data)
-                        else:
-                            self.lgz.debug('This update is service - passed')
-        except Exception as e:
-            self.lgz.exception('Exception')
-            if isinstance(incoming_data, Update):
-                self.send_error_message(UpdateCmn(incoming_data), e)
-        finally:
-            self.lgz.debug('Thread exited. Threads count=%s' % len(TamTamBot.threads))
-
-    def after_handle_request_body(self, incoming_data):
-        # type: (object) -> object
-        if self:
-            return incoming_data
 
     def before_handle_update(self, update):
         # type: (Update) -> None
