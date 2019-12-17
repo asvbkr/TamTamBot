@@ -79,6 +79,7 @@ class TamTamBot(object):
             self.logging_level = logging_level
 
         self.polling_sleep_time = 5
+        self.polling_error_sleep_time = 5
 
         self.client = ApiClient(self.conf)
 
@@ -586,6 +587,8 @@ class TamTamBot(object):
                     raise
             except Exception:
                 self.lgz.exception('Exception')
+                self.lgz.warning('Pause for %s seconds because there was an error' % self.polling_error_sleep_time)
+                sleep(self.polling_error_sleep_time)
                 # raise
         self.lgz.info('Stopping')
 
@@ -1363,9 +1366,10 @@ class TamTamBot(object):
 
     def get_message(self, mid):
         # type: ([str]) -> Message
-        ml = self.get_messages([mid])
-        if ml:
-            return ml[0]
+        try:
+            return self.msg.get_message_by_id(mid)
+        except ApiException:
+            pass
 
     def get_forwarded_message(self, message):
         # type: (Message or str) -> LinkedMessage
