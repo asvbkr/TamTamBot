@@ -28,6 +28,7 @@ class UpdateCmn(object):
         self.required_cmd_response = False
         self.update_previous = None
         self.recipient = None
+        self.user_locale = update.user_locale if hasattr(update, 'user_locale') else None
 
         if isinstance(update, MessageCallbackUpdate):
             self.cmd = update.callback.payload

@@ -216,8 +216,10 @@ class TamTamBot(object):
 
     def get_user_language_by_update(self, update):
         # type: (Update) -> str
-        language = self.get_default_language()
         update = UpdateCmn(update)
+        language = update.user_locale or self.get_default_language()
+        if language not in self.languages_dict.keys():
+            language = self.get_default_language()
         if update:
             cursor = self.conn_srv.cursor()
             # noinspection SqlResolve
@@ -231,9 +233,11 @@ class TamTamBot(object):
                 self.lgz.debug(' -> update.user_id=%s -> language: "%s"' % (update.user_id, language))
         return language
 
-    def set_user_language_by_update(self, update, language):
-        # type: (Update, str) -> None
+    def set_user_language_by_update(self, update, language, soft_setting=False):
+        # type: (Update, str, bool) -> None
         language = language or self.get_default_language()
+        if language not in self.languages_dict.keys():
+            language = self.get_default_language()
         update = UpdateCmn(update)
         if update:
             cursor = self.conn_srv.cursor()
@@ -244,10 +248,11 @@ class TamTamBot(object):
             row = cursor.fetchone()
 
             if row[0] > 0:
-                # noinspection SqlResolve,SqlWithoutWhere
-                cursor.execute(
-                    'UPDATE %(table)s SET [language] = :language WHERE [user_id]=:user_id' %
-                    {'table': self.user_prop_table_name}, {'language': language, 'user_id': update.user_id})
+                if not soft_setting:
+                    # noinspection SqlResolve,SqlWithoutWhere
+                    cursor.execute(
+                        'UPDATE %(table)s SET [language] = :language WHERE [user_id]=:user_id' %
+                        {'table': self.user_prop_table_name}, {'language': language, 'user_id': update.user_id})
             else:
                 # noinspection SqlResolve
                 cursor.execute(
@@ -460,9 +465,12 @@ class TamTamBot(object):
         if not (update.chat_type in [ChatType.DIALOG]):
             return False
         if not update.this_cmd_response:  # Прямой вызов команды
-            return bool(
-                self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
-            )
+            if not (hasattr(update.update_current, 'payload') and update.update_current.payload):
+                if isinstance(update.update_current, BotStartedUpdate):
+                    self.set_user_language_by_update(update.update_current, update.user_locale, soft_setting=True)
+                return bool(
+                    self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
+                )
         else:  # Текстовый ответ команде не предусмотрен
             pass
 
