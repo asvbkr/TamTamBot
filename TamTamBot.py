@@ -218,7 +218,7 @@ class TamTamBot(object):
         # type: (Update) -> str
         update = UpdateCmn(update)
         language = update.user_locale or self.get_default_language()
-        if language not in self.languages_dict.keys():
+        if language[:2] not in self.languages_dict.keys():
             language = self.get_default_language()
         if update:
             cursor = self.conn_srv.cursor()
@@ -236,7 +236,7 @@ class TamTamBot(object):
     def set_user_language_by_update(self, update, language, soft_setting=False):
         # type: (Update, str, bool) -> None
         language = language or self.get_default_language()
-        if language not in self.languages_dict.keys():
+        if language[:2] not in self.languages_dict.keys():
             language = self.get_default_language()
         update = UpdateCmn(update)
         if update:
