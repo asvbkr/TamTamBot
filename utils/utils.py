@@ -80,6 +80,19 @@ def get_environ_int(np, default=None):
     return res
 
 
+def get_environ_bool(np, default=None):
+    # type: (str, bool) -> bool
+    res = default
+    s = os.environ.get(np)
+    if s:
+        s = s.lower()
+        if s == 'true':
+            res = True
+        elif s == 'false':
+            res = False
+    return res
+
+
 class ExtList(list):
     def __init__(self, no_double=False):
         self.no_double = no_double

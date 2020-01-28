@@ -731,7 +731,7 @@ class TamTamBot(object):
 
         if not self.update_is_service(update):
             try:
-                if update and update.user_id:
+                if update and update.user_id and update.chat_id:
                     chat = self.chats.get_chat(update.chat_id)
                     if isinstance(chat, Chat):
                         chat = ChatExt(chat, self.title)
