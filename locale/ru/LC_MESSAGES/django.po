@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-07-04 20:59+0300\n"
+"POT-Creation-Date: 2020-01-28 21:07+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,12 +19,13 @@ msgstr ""
 "10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || (n%"
 "100>=11 && n%100<=14)? 2 : 3);\n"
 
-#: .\TamTamBot.py:92
-#, python-format
-msgid "bot @%(username)s (%(name)s)"
+#: .\TamTamBot.py:106
+#, fuzzy, python-format
+#| msgid "bot @%(username)s (%(name)s)"
+msgid "bot https://tt.me/%(username)s (@%(username)s) (%(name)s)"
 msgstr "бот @%(username)s (%(name)s)"
 
-#: .\TamTamBot.py:108
+#: .\TamTamBot.py:125
 msgid ""
 "This is the coolest bot in the world, but so far can not do anything. To "
 "open the menu, type /menu."
@@ -32,55 +33,55 @@ msgstr ""
 "Это самый крутой бот в мире, но пока ничего не умееет. Для вызова меню, "
 "наберите /menu."
 
-#: .\TamTamBot.py:113
+#: .\TamTamBot.py:130
 msgid "Abilities:"
 msgstr "Возможности:"
 
-#: .\TamTamBot.py:119
+#: .\TamTamBot.py:137
 msgid "About bot"
 msgstr "О боте"
 
-#: .\TamTamBot.py:120
+#: .\TamTamBot.py:138
 msgid "All chat bots"
 msgstr "Все чаты бота"
 
-#: .\TamTamBot.py:121
+#: .\TamTamBot.py:139
 msgid "API documentation for TamTam-bots"
 msgstr "Документация по TamTam ботов"
 
-#: .\TamTamBot.py:122
+#: .\TamTamBot.py:140
 msgid "JSON Diagram API TamTam Bots"
 msgstr "JSON-схема API TamTam ботов"
 
-#: .\TamTamBot.py:123
+#: .\TamTamBot.py:141
 msgid "Report your contact details"
 msgstr "Сообщить контактные данные"
 
-#: .\TamTamBot.py:124
+#: .\TamTamBot.py:142
 msgid "Report your location"
 msgstr "Сообщить местонахождение"
 
-#: .\TamTamBot.py:376
+#: .\TamTamBot.py:441 .\TamTamBot.py:907
 #, python-format
 msgid "Wait for process your request (%s)..."
 msgstr "Выполняется Ваш запрос (%s). Подождите..."
 
-#: .\TamTamBot.py:391
+#: .\TamTamBot.py:456
 #, python-format
 msgid "\"%s\" is an incorrect command. Please specify."
 msgstr "\"%s\" некорректная команда. Пожалуйста, уточните."
 
-#: .\TamTamBot.py:464
+#: .\TamTamBot.py:534
 #, python-format
 msgid ""
 "%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n"
 msgstr "%(chat_name)s: участников: %(participants)s; права: %(permissions)s\n"
 
-#: .\TamTamBot.py:468
+#: .\TamTamBot.py:538
 msgid "Chats not found."
 msgstr "Чаты не найдены."
 
-#: .\TamTamBot.py:470
+#: .\TamTamBot.py:540
 msgid ""
 "Bot connected to the chat:\n"
 "\n"
@@ -88,7 +89,7 @@ msgstr ""
 "Бот подключен к чатам:\n"
 "\n"
 
-#: .\TamTamBot.py:562
+#: .\TamTamBot.py:726
 #, python-format
 msgid ""
 "Your request (%s) cannot be completed at this time (Maintenance mode etc.). "
@@ -97,31 +98,31 @@ msgstr ""
 "Ваш запрос (%s) невозможно выполнить прямо сейчас (т.к. выполняются "
 "сервисные работы и др.). Попробуйте позже."
 
-#: .\TamTamBot.py:912
+#: .\TamTamBot.py:1185
 msgid "No available items found."
 msgstr "Не найдено доступных элементов."
 
-#: .\TamTamBot.py:925
+#: .\TamTamBot.py:1201
 msgid "Yes"
 msgstr "Да"
 
-#: .\TamTamBot.py:926
+#: .\TamTamBot.py:1202
 msgid "No"
 msgstr "Нет"
 
-#: .\cls\ChatExt.py:35
+#: .\cls\ChatExt.py:43
 #, python-format
 msgid "current bot (№%s)"
 msgstr "этот бот (№%s)"
 
-#: .\cls\ChatExt.py:43
+#: .\cls\ChatExt.py:70
 msgid "dialog"
 msgstr "диалог"
 
-#: .\cls\ChatExt.py:44
+#: .\cls\ChatExt.py:71
 msgid "chat"
 msgstr "чат"
 
-#: .\cls\ChatExt.py:45
+#: .\cls\ChatExt.py:72
 msgid "channel"
 msgstr "канал"
