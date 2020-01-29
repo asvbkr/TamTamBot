@@ -3,7 +3,7 @@ import json
 import re
 
 from TamTamBot.utils.utils import get_param_value, str_to_int
-from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message
+from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message, Recipient
 
 
 class UpdateCmn(object):
@@ -61,22 +61,11 @@ class UpdateCmn(object):
                     else:
                         self.cmd_args = {'id_str': fk}
 
-            self.chat_id = update.message.recipient.chat_id
             self.user = update.callback.user
-            self.user_id = update.callback.user.user_id
-            self.user_name = update.callback.user.name
-            self.chat_type = update.message.recipient.chat_type
+
         elif isinstance(update, MessageCreatedUpdate):
             self.cmd = update.message.body.text
             self.link = NewMessageLink(MessageLinkType.REPLY, update.message.body.mid)
-            if update.message.recipient:
-                self.chat_id = update.message.recipient.chat_id
-                self.chat_type = update.message.recipient.chat_type
-                self.user_id_recipient = update.message.recipient.user_id
-            if update.message.sender:
-                self.user = update.message.sender
-                self.user_id = update.message.sender.user_id
-                self.user_name = update.message.sender.name
 
             # Обработка аргументов команды типа /get_ids 1 2 7
             # Поддерживается два формата:
@@ -88,7 +77,7 @@ class UpdateCmn(object):
                 self.cmd = f.group(1)
                 self.cmd_args = self.cmd_args or {}
                 i = 1
-                for l in f.group(2).split('\n'):
+                for ln in f.group(2).split('\n'):
                     if not isinstance(self.cmd_args.get('c_parts'), list):
                         self.cmd_args['c_parts'] = [[]]
                     else:
@@ -96,7 +85,7 @@ class UpdateCmn(object):
 
                     ind_l = 'l%s' % i
                     j = 1
-                    for c in l.split(' '):
+                    for c in ln.split(' '):
                         if len(c.strip()) > 0:
                             self.cmd_args['c_parts'][-1].append(c)
 
@@ -109,8 +98,6 @@ class UpdateCmn(object):
 
         elif isinstance(update, BotStartedUpdate):
             self.cmd = '/start'
-            self.link = None
-            self.user_name = None
             self.chat_type = ChatType.DIALOG
 
         if self.user is None:
@@ -118,11 +105,6 @@ class UpdateCmn(object):
                 self.user = update.user
             elif hasattr(update, 'sender'):
                 self.user = update.message.sender
-            if isinstance(self.user, User):
-                if self.user_id is None:
-                    self.user_id = self.user.user_id
-                if self.user_name is None:
-                    self.user_name = self.user.name
 
         if self.chat_id is None:
             if hasattr(update, 'chat_id'):
@@ -134,8 +116,19 @@ class UpdateCmn(object):
 
         if hasattr(update, 'message') and isinstance(update.message, Message):
             self.message = update.message
-            if hasattr(self.message, 'recipient'):
-                self.recipient = self.message.recipient
+
+        if isinstance(self.message, Message):
+            if isinstance(self.message.recipient, Recipient):
+                self.recipient = update.message.recipient
+                self.chat_id = self.chat_id or self.recipient.chat_id
+                self.chat_type = self.chat_type or self.recipient.chat_type
+                self.user_id_recipient = self.user_id_recipient or self.recipient.user_id
+            if isinstance(self.message.sender, User):
+                self.user = self.user or self.message.sender
+
+        if isinstance(self.user, User):
+            self.user_id = self.user_id or self.user.user_id
+            self.user_name = self.user_name or self.user.name
 
         if self.cmd:
             self.cmd = self.cmd[1:]
