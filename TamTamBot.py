@@ -607,11 +607,16 @@ class TamTamBot(object):
     # Обработка тела запроса
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
-        for t in TamTamBot.threads:
-            if not t.is_alive():
-                self.lgz.debug('stop %s!' % t)
-                t.join()
-                TamTamBot.threads.remove(t)
+        while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
+            err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
+            self.lgz.debug(err)
+            for t in TamTamBot.threads:
+                if not t.is_alive():
+                    self.lgz.debug('stop %s!' % t)
+                    t.join()
+                    TamTamBot.threads.remove(t)
+            self.lgz.info('After trying to release: %s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+
         if len(TamTamBot.threads) < TamTamBot.work_threads_max_count():
             t = Thread(target=self.handle_request_body_, args=(request_body,))
             # noinspection PyBroadException
