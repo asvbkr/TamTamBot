@@ -788,10 +788,11 @@ class TamTamBot(object):
     def before_handle_update(self, update):
         # type: (Update) -> None
         update = UpdateCmn(update)
-        if update.chat_type in [ChatType.DIALOG]:
+        if update.chat_id:
             self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
-            # Запускаем повторитель события
-            self.action_repeat(update.chat_id, SenderAction.TYPING_ON)
+            if update.chat_type in [ChatType.DIALOG]:
+                # Запускаем повторитель события
+                self.action_repeat(update.chat_id, SenderAction.TYPING_ON)
 
     def handle_update(self, update):
         # type: (Update) -> bool
@@ -886,7 +887,7 @@ class TamTamBot(object):
     def after_handle_update(self, update):
         # type: (Update) -> None
         update = UpdateCmn(update)
-        if update.chat_type in [ChatType.DIALOG]:
+        if update.chat_id:
             # Отключаем повторитель события
             self.action_repeat(update.chat_id, SenderAction.TYPING_ON, False)
 
