@@ -2,8 +2,8 @@
 import json
 import re
 
-from TamTamBot.utils.utils import get_param_value, str_to_int
-from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message, Recipient
+from TamTamBot.utils.utils import get_param_value, str_to_int, get_md5_hash_str
+from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message, Recipient, Callback
 
 
 class UpdateCmn(object):
@@ -140,3 +140,18 @@ class UpdateCmn(object):
         if not self._index:
             self._index = '%s_%s' % (self.chat_id, self.user_id)
         return self._index
+
+    def is_double_click(self, callbacks_list):
+        # type: ([]) -> str
+        res = False
+        if isinstance(self.update_current, MessageCallbackUpdate):
+            ind = self.get_callback_index(self.update_current.callback)
+            if len(callbacks_list[ind]) == 2:
+                res = (callbacks_list[ind][0] - callbacks_list[ind][1]) <= 1000
+        return res
+
+    @staticmethod
+    def get_callback_index(callback):
+        # type: (Callback) -> str
+        ind = '%s#%s' % (callback.user.user_id, get_md5_hash_str(callback.payload))
+        return ind

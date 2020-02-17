@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import hashlib
 import inspect
 import os
 import re
@@ -91,6 +92,11 @@ def get_environ_bool(np, default=None):
         elif s == 'false':
             res = False
     return res
+
+
+def get_md5_hash_str(str_):
+    # type: (str) -> str
+    return hashlib.md5(str(str_).encode('utf-8')).hexdigest()
 
 
 class ExtList(list):

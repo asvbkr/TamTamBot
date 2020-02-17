@@ -40,6 +40,7 @@ class TamTamBot(object):
     _work_threads_max_count = None
     threads = []
     chats_action = {}
+    callbacks_list = {}
 
     SERVICE_STR_SEQUENCE = chr(8203) + chr(8203) + chr(8203)
 
@@ -929,6 +930,12 @@ class TamTamBot(object):
 
     def handle_message_callback_update(self, update):
         # type: (MessageCallbackUpdate) -> bool
+        ind = UpdateCmn.get_callback_index(update.callback)
+        if self.callbacks_list.get(ind):
+            self.callbacks_list[ind] = [update.callback.timestamp, self.callbacks_list[ind][0]]
+        else:
+            self.callbacks_list[ind] = [update.callback.timestamp]
+
         if update.callback.payload:
             self.lgz.debug('MessageCallbackUpdate:\r\n%s' % update.callback.payload)
             res = self.process_command(update)
