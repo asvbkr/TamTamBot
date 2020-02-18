@@ -1154,10 +1154,10 @@ class TamTamBot(object):
 
                     admins = {}
                     if chat.type == ChatType.DIALOG:
-                        admins[self.user_id] = ChatMember(self.user_id, 'n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
                                                           permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                         dialog_user_id = self.user_id ^ chat.chat_id
-                        admins[dialog_user_id] = ChatMember(dialog_user_id, 'n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
                                                             permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                     else:
                         try:
