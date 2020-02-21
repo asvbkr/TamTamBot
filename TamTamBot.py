@@ -1402,7 +1402,7 @@ class TamTamBot(object):
     def get_forwarded_message_full(self, message):
         # type: (Message) -> Message
         lm = self.get_forwarded_message(message)
-        if isinstance(lm, LinkedMessage):
+        if isinstance(lm, LinkedMessage) and lm.message:
             return self.get_message(lm.message.mid)
 
     def subscribe(self, url_list, adding=False):
