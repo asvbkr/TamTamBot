@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+import re
+
 from openapi_client import Chat, ChatType
 from ..utils.lng import get_text as _
 
@@ -11,6 +13,7 @@ class ChatExt(object):
         self.admin_permissions = admin_permissions or {}
 
         self._chat_id = None
+        self._lang = None
 
     @property
     def chat_id(self):
@@ -54,6 +57,16 @@ class ChatExt(object):
     def chat_name_ext(self):
         # type: () -> str
         return self.get_chat_name(self.title_ext)
+
+    @property
+    def lang(self):
+        # type: () -> str
+        if self._lang is None:
+            self._lang = ''
+            if isinstance(self.chat, Chat):
+                if re.findall(r'[а-яА-я]{4,}', '%s\n\n\n%s' % (self.chat.title, self.chat.description)):
+                    self._lang = 'ru'
+        return self._lang
 
     @property
     def chat_user_name(self):
