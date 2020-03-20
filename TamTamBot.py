@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -1385,11 +1386,45 @@ class TamTamBot(object):
         except ApiException:
             pass
 
+    # Возвращает список сообщений по списку mid'ов
+    def get_message_list(self, mid_list):
+        # type: ([str]) -> [Message]
+        message_list = []
+        bad_mid_list = []
+        max_cnt_for_mid_list = 80
+        for i in range(math.ceil(len(mid_list) / max_cnt_for_mid_list)):
+            cur_mid_list = mid_list[(i * max_cnt_for_mid_list):((i + 1) * max_cnt_for_mid_list)]
+            try:
+                msg_m_list = self.msg.get_messages(message_ids=cur_mid_list, count=MessagesApi.MAX_MESSAGE_COUNT)
+                if msg_m_list:
+                    message_list.extend(msg_m_list.messages)
+                    getting_mid_list = [_.body.mid for _ in msg_m_list.messages]
+                    for mid in cur_mid_list:
+                        if mid not in getting_mid_list:
+                            msg = self.get_message(mid)
+                            if msg:
+                                message_list.append(msg)
+                            else:
+                                bad_mid_list.append(mid)
+            except (ApiException, ValueError):
+                for mid in cur_mid_list:
+                    msg = self.get_message(mid)
+                    if msg:
+                        message_list.append(msg)
+                    else:
+                        bad_mid_list.append(mid)
+        # Очищаем список переданных mid - как обработанных
+        mid_list.clear()
+        # Битые mid возвращаем, как необработанные
+        mid_list.extend(bad_mid_list)
+
+        return message_list
+
     def get_message(self, mid):
         # type: ([str]) -> Message
         try:
             return self.msg.get_message_by_id(mid)
-        except ApiException:
+        except (ApiException, ValueError):
             pass
 
     def get_forwarded_message(self, message):
