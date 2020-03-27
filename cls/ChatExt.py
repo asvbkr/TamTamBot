@@ -6,6 +6,8 @@ from ..utils.lng import get_text as _
 
 
 class ChatExt(object):
+    TT_URL_BASE = 'https://tt.me/'
+
     def __init__(self, chat, this_dialog_name, admin_permissions=None):
         # type: (Chat, str,{int: [str]}) -> None
         self.chat = chat
@@ -72,10 +74,16 @@ class ChatExt(object):
     def chat_user_name(self):
         user_name = ''
         if self.chat.link:
-            tt_address = 'https://tt.me/'
-            if not self.chat.link.startswith('%sjoin/' % tt_address):
-                user_name = self.chat.link.replace('%s' % tt_address, '')
+            if not self.chat.link.startswith('%sjoin/' % self.TT_URL_BASE):
+                user_name = self.chat.link.replace('%s' % self.TT_URL_BASE, '')
         return user_name
+
+    @property
+    def public_name(self):
+        public_name = None
+        if self.chat.link:
+            public_name = self.chat.link.replace('%s' % self.TT_URL_BASE, '')
+        return public_name
 
     @staticmethod
     def chat_type(key):
