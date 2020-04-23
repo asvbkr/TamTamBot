@@ -730,7 +730,7 @@ class TamTamBot(object):
             return False
 
         res = None
-        main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time (Maintenance mode etc.). Try again later.') % update.cmd
+        main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time (Maintenance mode etc.). Try again later.') % (update.cmd or '')
         chat_type = update.chat_type
 
         if error:
@@ -1155,10 +1155,10 @@ class TamTamBot(object):
 
                     admins = {}
                     if chat.type == ChatType.DIALOG:
-                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=True,
                                                           permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                         dialog_user_id = self.user_id ^ chat.chat_id
-                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=False,
                                                             permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                     else:
                         try:
