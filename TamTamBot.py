@@ -29,7 +29,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
-from .utils.utils import str_to_int, get_environ_int
+from .utils.utils import str_to_int, get_environ_int, put_into_text_storage
 
 
 class TamTamBotException(Exception):
@@ -1352,6 +1352,37 @@ class TamTamBot(object):
                 if rpt >= max_retry or not (e.status == 400 and e.body.find('"code":"attachment.not.ready"') >= 0):
                     raise
                 sleep(sl_time)
+
+    def send_message_long_text(self, mb, long_text, max_retry=20, sl_time=1, **kwargs):
+        # type: (NewMessageBody, str or [], int, int, dict) -> [SendMessageResult]
+        """
+        :param NewMessageBody mb: (required)
+        :param str long_text: (required)
+        :param int user_id: Fill this parameter if you want to send message to user
+        :param int chat_id: Fill this if you send message to chat
+        :return: SendMessageResult
+                 If the method is called asynchronously,
+                 returns the request thread.
+        """
+        res_list = []
+
+        if not isinstance(long_text, list):
+            text_storage = put_into_text_storage([], long_text, NewMessageBody.MAX_BODY_LENGTH * 1)
+        else:
+            text_storage = long_text
+        link_p = mb.link
+        i = 0
+        for text in text_storage:
+            i += 1
+            if i != 1:
+                mb.attachments = None
+            mb.text = text
+            mb.link = link_p
+            res = self.send_message(mb, **kwargs)
+            if isinstance(res, SendMessageResult):
+                link_p = NewMessageLink(MessageLinkType.REPLY, res.message.body.mid)
+            res_list.append(res)
+        return res_list
 
     @staticmethod
     def get_old_mid(prm):

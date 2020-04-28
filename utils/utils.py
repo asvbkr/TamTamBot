@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import hashlib
 import inspect
+import math
 import os
 import re
 import time
@@ -97,6 +98,28 @@ def get_environ_bool(np, default=None):
 def get_md5_hash_str(str_):
     # type: (str) -> str
     return hashlib.md5(str(str_).encode('utf-8')).hexdigest()
+
+
+def put_into_text_storage(text_storage, text, max_length):
+    # type: ([], str, int) -> []
+
+    max_length = int(max_length)
+    if len(text_storage) == 0:
+        text_storage.append('')
+    ci = len(text_storage) - 1
+    if len(text_storage[ci] + text) <= max_length:
+        text = text_storage[ci] + text
+        text_storage[ci] = text
+    else:
+        s_m = []
+        p_c = math.ceil(len(text) / max_length)
+        for i in range(p_c):
+            s_m.append(text[max_length * i:max_length * (i + 1)])
+        if not text_storage[ci]:
+            text_storage.pop(ci)
+        text_storage.extend(s_m)
+
+    return text_storage
 
 
 class ExtList(list):
