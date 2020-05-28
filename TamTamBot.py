@@ -766,7 +766,7 @@ class TamTamBot(object):
         return incoming_data
 
     def serialize_open_api_object(self, obj):
-        # type: (object) -> bytes
+        # type: (object) -> str
         return json.dumps(self.client.sanitize_for_serialization(obj))
 
     def deserialize_update(self, b_obj):
@@ -778,7 +778,7 @@ class TamTamBot(object):
         return incoming_data
 
     def serialize_update(self, update):
-        # type: (Update) -> bytes
+        # type: (Update) -> str
         return self.serialize_open_api_object(update)
 
     def action_repeat(self, chat_id, action_name, on=True):
@@ -1332,6 +1332,8 @@ class TamTamBot(object):
         # type: (NewMessageBody, int, int, dict) -> SendMessageResult
         """
         :param NewMessageBody mb: (required)
+        :param int max_retry: maximum number of repetitions
+        :param int sl_time: delay time for repeating an error
         :param int user_id: Fill this parameter if you want to send message to user
         :param int chat_id: Fill this if you send message to chat
         :return: SendMessageResult
@@ -1353,11 +1355,14 @@ class TamTamBot(object):
                     raise
                 sleep(sl_time)
 
+    # noinspection PyIncorrectDocstring
     def send_message_long_text(self, mb, long_text, max_retry=20, sl_time=1, **kwargs):
         # type: (NewMessageBody, str or [], int, int, dict) -> [SendMessageResult]
         """
         :param NewMessageBody mb: (required)
         :param str long_text: (required)
+        :param int max_retry: maximum number of repetitions
+        :param int sl_time: delay time for repeating an error
         :param int user_id: Fill this parameter if you want to send message to user
         :param int chat_id: Fill this if you send message to chat
         :return: SendMessageResult
@@ -1378,8 +1383,8 @@ class TamTamBot(object):
                 mb.attachments = None
             mb.text = text
             mb.link = link_p
-            res = self.send_message(mb, **kwargs)
-            if isinstance(res, SendMessageResult):
+            res = self.send_message(mb, max_retry, sl_time, **kwargs)
+            if res:
                 link_p = NewMessageLink(MessageLinkType.REPLY, res.message.body.mid)
             res_list.append(res)
         return res_list
