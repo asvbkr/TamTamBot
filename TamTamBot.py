@@ -105,7 +105,7 @@ class TamTamBot(object):
             self.user_id = self.info.user_id
             self.name = self.info.name
             self.username = self.info.username
-            self.title = _('bot https://tt.me/%(username)s (@%(username)s) (%(name)s)') % {'username': self.username, 'name': self.name}
+            self.title = _('bot https://tt.me/%(username)s — tamtam://chat/%(username)s (@%(username)s) (%(name)s)') % {'username': self.username, 'name': self.name}
         else:
             self.user_id = None
             self.name = None
@@ -118,7 +118,7 @@ class TamTamBot(object):
         self.user_prop_table_name = 'tamtambot_user_prop'
         self.db_prepare()
 
-        self.lgz.debug('%s inited.' % self.title)
+        self.lgz.info('%s inited.' % self.title)
 
     @property
     def about(self):
