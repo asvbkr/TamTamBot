@@ -25,7 +25,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType, \
-    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate
+    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -361,14 +361,17 @@ class TamTamBot(object):
         if update.chat_id:
             return self.msg.send_message(self.add_buttons_to_message_body(NewMessageBody(self.main_menu_title), self.main_menu_buttons), chat_id=update.chat_id)
 
-    def get_buttons_for_chats_available(self, user_id, cmd):
-        # type: (int, str) -> [[CallbackButtonCmd]]
+    def get_buttons_for_chats_available(self, user_id, cmd, ext_args=None):
+        # type: (int, str, dict) -> [[CallbackButtonCmd]]
         buttons = []
+        ext_args = ext_args or {}
         chats_available = self.get_users_chats_with_bot(user_id)
         i = 0
         for chat in sorted(chats_available.values()):
             i += 1
-            buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, {'chat_id': chat.chat.chat_id}, Intent.DEFAULT, bot_username=self.username)])
+            args = {'chat_id': chat.chat.chat_id}
+            args.update(ext_args)
+            buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, args, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
     def view_buttons_for_chats_available(self, title, cmd, user_id, link=None, update=None):
@@ -1388,6 +1391,20 @@ class TamTamBot(object):
                 link_p = NewMessageLink(MessageLinkType.REPLY, res.message.body.mid)
             res_list.append(res)
         return res_list
+
+    def send_notification(self, update, notification):
+        """
+
+        :rtype: None
+        :param UpdateCmn update:
+        :param str notification:
+        """
+        if update and notification:
+            update_current = None
+            if isinstance(update.update_current, MessageCallbackUpdate):
+                update_current = update.update_current
+            if update_current:
+                self.msg.answer_on_callback(update_current.callback.callback_id, CallbackAnswer(notification=notification))
 
     @staticmethod
     def get_old_mid(prm):
