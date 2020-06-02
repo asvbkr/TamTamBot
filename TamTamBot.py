@@ -218,7 +218,7 @@ class TamTamBot(object):
 
     def get_user_language_by_update(self, update):
         # type: (Update) -> str
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         language = update.user_locale or self.get_default_language()
         if language[:2] not in self.languages_dict.keys():
             language = self.get_default_language()
@@ -240,7 +240,7 @@ class TamTamBot(object):
         language = language or self.get_default_language()
         if language[:2] not in self.languages_dict.keys():
             language = self.get_default_language()
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         if update:
             cursor = self.conn_srv.cursor()
             # noinspection SqlResolve
@@ -382,7 +382,7 @@ class TamTamBot(object):
         if not isinstance(update, (Update, UpdateCmn)):
             return False, False
         if not isinstance(update, UpdateCmn):
-            update = UpdateCmn(update)
+            update = UpdateCmn(update, self)
         cmd_handler = 'cmd_handler_%s' % update.cmd
         if hasattr(self, cmd_handler):
             return getattr(self, cmd_handler)
@@ -393,7 +393,7 @@ class TamTamBot(object):
         if not isinstance(update, (Update, UpdateCmn)):
             return False, False
         if not isinstance(update, UpdateCmn):
-            update = UpdateCmn(update)
+            update = UpdateCmn(update, self)
         if not update.this_cmd_response:
             handler = self.get_cmd_handler(update)
             self.prev_step_delete(update.index)
@@ -426,7 +426,7 @@ class TamTamBot(object):
         """
         res_w_m = None
 
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         try:
             if not update.chat_id:
                 return False
@@ -639,7 +639,7 @@ class TamTamBot(object):
             self.lgz.debug(err)
             incoming_data = self.deserialize_update(request_body)
             if isinstance(incoming_data, Update):
-                update = UpdateCmn(incoming_data)
+                update = UpdateCmn(incoming_data, self)
                 self.send_error_message(update)
                 self.send_admin_message(err, update)
 
@@ -662,14 +662,14 @@ class TamTamBot(object):
                     incoming_data = self.after_handle_request_body(incoming_data)
                     self.lgz.debug('incoming data:\n type=%s;\n data=%s' % (type(incoming_data), incoming_data))
                     if isinstance(incoming_data, Update):
-                        if not self.update_is_service(UpdateCmn(incoming_data)):
+                        if not self.update_is_service(UpdateCmn(incoming_data, self)):
                             self.handle_update(incoming_data)
                         else:
                             self.lgz.debug('This update is service - passed')
         except Exception as e:
             self.lgz.exception('Exception')
             if isinstance(incoming_data, Update):
-                self.send_error_message(UpdateCmn(incoming_data), e)
+                self.send_error_message(UpdateCmn(incoming_data, self), e)
         finally:
             self.lgz.debug('Thread exited. Threads count=%s' % len(TamTamBot.threads))
 
@@ -797,7 +797,7 @@ class TamTamBot(object):
 
     def before_handle_update(self, update):
         # type: (Update) -> None
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         if update.chat_id:
             self.chats.send_action(update.chat_id, ActionRequestBody(SenderAction.MARK_SEEN))
             if update.chat_type in [ChatType.DIALOG]:
@@ -829,7 +829,7 @@ class TamTamBot(object):
                     res = self.process_command(update)
                     self.lgz.debug('exit from %s with result=%s' % (self.process_command, res))
                 elif isinstance(update, MessageCreatedUpdate):
-                    if not self.update_is_service(UpdateCmn(update)):
+                    if not self.update_is_service(UpdateCmn(update, self)):
                         self.lgz.debug('entry to %s' % self.handle_message_created_update)
                         res = self.handle_message_created_update(update)
                         self.lgz.debug('exit from %s with result=%s' % (self.handle_message_created_update, res))
@@ -891,19 +891,19 @@ class TamTamBot(object):
             return res
         except Exception as e:
             self.lgz.exception('Exception')
-            update = UpdateCmn(update)
+            update = UpdateCmn(update, self)
             self.send_error_message(update, e)
 
     def after_handle_update(self, update):
         # type: (Update) -> None
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         if update.chat_id:
             # Отключаем повторитель события
             self.action_repeat(update.chat_id, SenderAction.TYPING_ON, False)
 
     def handle_message_created_update(self, update):
         # type: (MessageCreatedUpdate) -> bool
-        update = UpdateCmn(update)
+        update = UpdateCmn(update, self)
         # Проверка на ответ команде
         update_previous = self.prev_step_get(update.index)
         if isinstance(update_previous, Update):
@@ -911,7 +911,7 @@ class TamTamBot(object):
             # Если это ответ на вопрос команды, то установить соответствующий признак и снова вызвать команду
             update.this_cmd_response = True
             update.update_previous = update_previous
-            update_previous = UpdateCmn(update_previous)
+            update_previous = UpdateCmn(update_previous, self)
             res_w_m = None
             try:
                 if self.waiting_msg and update.chat_type == ChatType.DIALOG:

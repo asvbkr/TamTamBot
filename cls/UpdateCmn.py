@@ -7,13 +7,14 @@ from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMe
 
 
 class UpdateCmn(object):
-    def __init__(self, update):
-        # type: (Update) -> None
+    def __init__(self, update, ttb=None):
+        # type: (Update, object) -> None
 
         self.update_current = update
         self.update_type = update.update_type
         self.timestamp = update.timestamp
         self.message = None
+        self.ttb = ttb
         self.cmd_bot = None
         self.cmd = None
         self.cmd_args = None
