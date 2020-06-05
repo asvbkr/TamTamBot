@@ -1208,7 +1208,7 @@ class TamTamBot(object):
             if direction == 'close':
                 return True
             mid = update.message.body.mid
-            buttons = self.limited_buttons.get(mid)
+            buttons = TamTamBot.limited_buttons.get(mid)
             if mid and buttons:
                 self.view_buttons(title=None, buttons=buttons, update=mid, add_info=add_info, add_close_button=add_close_button, start_from=start_from, max_lines=max_lines)
             else:
@@ -1309,7 +1309,7 @@ class TamTamBot(object):
             mid = res.message.body.mid
 
         if limited and mid:
-            self.limited_buttons[mid] = base_buttons
+            TamTamBot.limited_buttons[mid] = base_buttons
         return res
 
     def get_yes_no_buttons(self, cmd_dict):
