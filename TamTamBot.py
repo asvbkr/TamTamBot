@@ -43,6 +43,8 @@ class TamTamBot(object):
     chats_action = {}
     callbacks_list = {}
 
+    limited_buttons = {}
+
     SERVICE_STR_SEQUENCE = chr(8203) + chr(8203) + chr(8203)
 
     def __init__(self):
@@ -1194,21 +1196,121 @@ class TamTamBot(object):
                     break
         return chats_available
 
-    def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None, update=None):
-        # type: (str, list, int, int, NewMessageLink, Update) -> SendMessageResult
+    def cmd_handler_get_buttons_oth(self, update):
+        if not isinstance(update.update_current, MessageCallbackUpdate):
+            return False
+        if update.cmd_args:
+            direction = update.cmd_args.get('direction')
+            start_from = update.cmd_args.get('start_from')
+            max_lines = update.cmd_args.get('max_lines')
+            add_close_button = update.cmd_args.get('add_close_button')
+            add_info = update.cmd_args.get('add_info')
+            if direction == 'close':
+                return True
+            mid = update.message.body.mid
+            buttons = self.limited_buttons.get(mid)
+            if mid and buttons:
+                self.view_buttons(title=None, buttons=buttons, update=mid, add_info=add_info, add_close_button=add_close_button, start_from=start_from, max_lines=max_lines)
+            else:
+                self.send_notification(update, _('Something went wrong...'))
+                return True
+        return False
+
+    def view_buttons(self, title, buttons, user_id=None, chat_id=None, link=None, update=None, add_info=False, add_close_button=False, start_from=None, max_lines=None):
+        # type: (str or None, list, int or None, int or None, NewMessageLink, Update, bool, bool, int or None, int or None) -> SendMessageResult
+        start_from = start_from or 0
+        max_lines_orig = max_lines
+        max_lines = min(max(max_lines or CallbackButtonCmd.MAX_ROWS - 1, 1), CallbackButtonCmd.MAX_ROWS - 1)
+
+        base_buttons = buttons
+        limited = False
         if buttons:
+            buttons = []
+            buttons_service = [[]]
+            pos_start = min(len(base_buttons), max(0, start_from))
+            pos_end = min(len(base_buttons), max(0, start_from + max_lines))
+            pages = len(base_buttons) % max_lines
+            is_pages_start = pos_start == 0
+            is_pages_end = pos_end == len(base_buttons)
+            cmd = 'get_buttons_oth'
+            fast_rev_need = pages >= 5
+            if len(base_buttons) > max_lines:
+                if fast_rev_need and not is_pages_start:
+                    button_title = '⏮'
+                    buttons_service[0].append(CallbackButtonCmd(
+                        button_title, cmd, {
+                            'direction': 'backward', 'start_from': 0, 'max_lines': max_lines_orig,
+                            'add_close_button': add_close_button, 'add_info': add_info
+                        }, Intent.POSITIVE, bot_username=self.username
+                    ))
+                if pos_start > 0:
+                    button_title = '←'
+                    if add_info:
+                        button_title = '%s %d-%d/\n%d' % (button_title, max(0, pos_start - max_lines) + 1, pos_start, len(base_buttons))
+                    buttons_service[0].append(CallbackButtonCmd(
+                        button_title, cmd, {
+                            'direction': 'backward', 'start_from': pos_start - max_lines, 'max_lines': max_lines_orig,
+                            'add_close_button': add_close_button, 'add_info': add_info
+                        }, Intent.POSITIVE, bot_username=self.username
+                    ))
+                    limited = True
+            buttons.extend(base_buttons[pos_start:pos_end])
+            if len(base_buttons) > max_lines:
+                if pos_end < len(base_buttons):
+                    button_title = '→'
+                    if add_info:
+                        button_title = '%s %d-%d/%d' % (button_title, pos_start + 1 + max_lines, min(len(base_buttons), pos_start + max_lines * 2), len(base_buttons))
+                    buttons_service[0].append(CallbackButtonCmd(
+                        button_title, cmd, {
+                            'direction': 'forward', 'start_from': pos_end, 'max_lines': max_lines_orig,
+                            'add_close_button': add_close_button, 'add_info': add_info
+                        }, Intent.POSITIVE, bot_username=self.username
+                    ))
+                    limited = True
+                if fast_rev_need and not is_pages_end:
+                    button_title = '⏭'
+                    buttons_service[0].append(CallbackButtonCmd(
+                        button_title, cmd, {
+                            'direction': 'forward', 'start_from': len(base_buttons) - max_lines, 'max_lines': max_lines_orig,
+                            'add_close_button': add_close_button, 'add_info': add_info
+                        }, Intent.POSITIVE, bot_username=self.username
+                    ))
+            if add_close_button:
+                buttons_service[0].append(CallbackButtonCmd(
+                    _('Close'), cmd, {
+                        'direction': 'close', 'start_from': pos_end,
+                        'add_close_button': add_close_button, 'add_info': add_info
+                    }, Intent.NEGATIVE, bot_username=self.username
+                ))
+            if buttons_service[0]:
+                buttons.extend(buttons_service)
+
             mb = self.add_buttons_to_message_body(NewMessageBody(title, link=link), buttons)
         else:
             mb = NewMessageBody(_('No available items found.'), link=link)
-        if not (user_id or chat_id):
-            raise TypeError('user_id or chat_id must be defined.')
+        mid = None
         if isinstance(update, MessageCallbackUpdate):
-            self.msg.edit_message(update.message.body.mid, mb)
+            mid = update.message.body.mid
+        elif isinstance(update, str):
+            mid = update
+
+        if not (user_id or chat_id or mid):
+            raise TypeError('user_id or chat_id or mid must be defined.')
+        res = None
+        if mid:
+            self.msg.edit_message(mid, mb)
         else:
             if chat_id:
-                return self.msg.send_message(mb, chat_id=chat_id)
+                res = self.msg.send_message(mb, chat_id=chat_id)
             else:
-                return self.msg.send_message(mb, user_id=user_id)
+                res = self.msg.send_message(mb, user_id=user_id)
+
+        if isinstance(res, SendMessageResult):
+            mid = res.message.body.mid
+
+        if limited and mid:
+            self.limited_buttons[mid] = base_buttons
+        return res
 
     def get_yes_no_buttons(self, cmd_dict):
         # type: ([{}]) -> list
