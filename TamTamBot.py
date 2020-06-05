@@ -460,7 +460,10 @@ class TamTamBot(object):
                 res = False
             else:
                 self.lgz.debug('Handler not exists.')
-                self.msg.send_message(NewMessageBody(_('"%s" is an incorrect command. Please specify.') % cmd, link=link), chat_id=chat_id)
+                if isinstance(update.update_current, MessageCallbackUpdate):
+                    self.send_notification(update, _('"%s" is an incorrect command. Please specify.') % cmd)
+                else:
+                    self.msg.send_message(NewMessageBody(_('"%s" is an incorrect command. Please specify.') % cmd, link=link), chat_id=chat_id)
                 res = False
             return res
         finally:
@@ -1196,6 +1199,31 @@ class TamTamBot(object):
                     break
         return chats_available
 
+    @staticmethod
+    def limited_buttons_index(**kwargs):
+        """
+
+        :rtype: str
+        """
+        if 'mid' in kwargs:
+            return kwargs['mid']
+
+    @staticmethod
+    def limited_buttons_get(index):
+        # type: (str) -> [[]]
+        return TamTamBot.limited_buttons.get(index)
+
+    @staticmethod
+    def limited_buttons_set(index, buttons):
+        # type: (str, [[]]) -> None
+        TamTamBot.limited_buttons[index] = buttons
+
+    @staticmethod
+    def limited_buttons_del(index):
+        # type: (str) -> None
+        if index in TamTamBot.limited_buttons:
+            TamTamBot.limited_buttons.pop(index)
+
     def cmd_handler_get_buttons_oth(self, update):
         if not isinstance(update.update_current, MessageCallbackUpdate):
             return False
@@ -1205,10 +1233,11 @@ class TamTamBot(object):
             max_lines = update.cmd_args.get('max_lines')
             add_close_button = update.cmd_args.get('add_close_button')
             add_info = update.cmd_args.get('add_info')
-            if direction == 'close':
-                return True
             mid = update.message.body.mid
-            buttons = TamTamBot.limited_buttons.get(mid)
+            if direction == 'close':
+                self.limited_buttons_del(self.limited_buttons_index(mid=mid))
+                return True
+            buttons = self.limited_buttons_get(self.limited_buttons_index(mid=mid))
             if mid and buttons:
                 self.view_buttons(title=None, buttons=buttons, update=mid, add_info=add_info, add_close_button=add_close_button, start_from=start_from, max_lines=max_lines)
             else:
@@ -1309,7 +1338,7 @@ class TamTamBot(object):
             mid = res.message.body.mid
 
         if limited and mid:
-            TamTamBot.limited_buttons[mid] = base_buttons
+            self.limited_buttons_set(self.limited_buttons_index(mid=mid), base_buttons)
         return res
 
     def get_yes_no_buttons(self, cmd_dict):
