@@ -376,9 +376,9 @@ class TamTamBot(object):
             buttons.append([CallbackButtonCmd('%d. %s' % (i, chat.chat_name), cmd, args, Intent.DEFAULT, bot_username=self.username)])
         return buttons
 
-    def view_buttons_for_chats_available(self, title, cmd, user_id, link=None, update=None):
-        # type: (str, str, int, NewMessageLink, Update) -> SendMessageResult
-        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id, link=link, update=update)
+    def view_buttons_for_chats_available(self, title, cmd, user_id, chat_id, link=None, update=None):
+        # type: (str, str, int, int, NewMessageLink, Update) -> SendMessageResult
+        return self.view_buttons(title, self.get_buttons_for_chats_available(user_id, cmd), user_id, chat_id, link=link, update=update)
 
     def get_cmd_handler(self, update):
         if not isinstance(update, (Update, UpdateCmn)):
