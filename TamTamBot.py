@@ -56,8 +56,8 @@ class TamTamBot(object):
         formatter = logging.Formatter('%(asctime)s - %(name)s[%(threadName)s-%(thread)d] - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
         self.lgz = logging.getLogger('%s' % self.__class__.__name__)
 
-        log_file_max_bytes = get_environ_int('LOGGING_FILE_MAX_BYTES', 10485760)
-        log_file_backup_count = get_environ_int('LOGGING_FILE_BACKUP_COUNT', 10)
+        log_file_max_bytes = get_environ_int('TT_BOT_LOGGING_FILE_MAX_BYTES', 10485760)
+        log_file_backup_count = get_environ_int('TT_BOT_LOGGING_FILE_BACKUP_COUNT', 10)
         fh = RotatingFileHandler("bots_%s.log" % self.__class__.__name__, mode='a', maxBytes=log_file_max_bytes, backupCount=log_file_backup_count, encoding='UTF-8')
         fh.setFormatter(formatter)
         self.lgz.addHandler(fh)
@@ -72,9 +72,9 @@ class TamTamBot(object):
         self.conf = Configuration()
         self.conf.api_key['access_token'] = self.token
 
-        self.trace_requests = True if os.environ.get('TRACE_REQUESTS', 'False').lower() == 'true' else False
+        self.trace_requests = True if os.environ.get('TT_BOT_TRACE_REQUESTS', 'False').lower() == 'true' else False
 
-        logging_level = os.environ.get('LOGGING_LEVEL', 'INFO')
+        logging_level = os.environ.get('TT_BOT_LOGGING_LEVEL', 'INFO')
         # noinspection PyProtectedMember
         logging_level = logging._nameToLevel.get(logging_level)
         if logging_level is None:
@@ -205,7 +205,7 @@ class TamTamBot(object):
     def languages_dict(self):
         if self._languages_dict is None:
             self._languages_dict = {}
-            l_fe = os.environ.get('LANGUAGES', 'ru=Русский:en=English')
+            l_fe = os.environ.get('TT_BOT_LANGUAGES', 'ru=Русский:en=English')
             l_l = l_fe.split(':')
             for l_c in l_l:
                 l_r = l_c.split('=')
@@ -341,7 +341,7 @@ class TamTamBot(object):
     @classmethod
     def work_threads_max_count(cls):
         if cls._work_threads_max_count is None:
-            cls._work_threads_max_count = str_to_int(os.environ.get('WORK_THREADS_MAX_COUNT'))
+            cls._work_threads_max_count = str_to_int(os.environ.get('TT_BOT_WORK_THREADS_MAX_COUNT'))
             if cls._work_threads_max_count is None:
                 cls._work_threads_max_count = 15
 
