@@ -702,19 +702,25 @@ class TamTamBot(object):
             err = traceback.format_exc()
         res = False
         now = datetime.now()
-        text = ('%s(bot @%s): `%s' % (now, self.username, (text + err)))[:NewMessageBody.MAX_BODY_LENGTH]
+        text = ('%s(bot @%s): `%s' % (now, self.username, (text + err)))
         text_add = ''
         if exception and update:
-            text_add = ('`%s' % update.update_current)[:NewMessageBody.MAX_BODY_LENGTH]
+            text_add = ('`%s' % update.update_current)
         if self.admins_contacts:
-            mb = NewMessageBody(text, link=link, notify=notify)
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
                     try:
-                        res_s = self.msg.send_message(mb, chat_id=el)
+                        res_s = self.send_message_long_text(
+                            NewMessageBody(link=link, notify=notify),
+                            text,
+                            chat_id=el,
+                        )
                         if isinstance(res_s, SendMessageResult) and text_add:
-                            mb_add = NewMessageBody(text_add, link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify)
-                            self.msg.send_message(mb_add, chat_id=el)
+                            res = self.send_message_long_text(
+                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify),
+                                text_add,
+                                chat_id=el,
+                            )
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
@@ -722,10 +728,17 @@ class TamTamBot(object):
             if self.admins_contacts.get('users'):
                 for el in self.admins_contacts.get('users'):
                     try:
-                        res_s = self.msg.send_message(mb, user_id=el)
+                        res_s = self.send_message_long_text(
+                            NewMessageBody(link=link, notify=notify),
+                            text,
+                            user_id=el,
+                        )
                         if isinstance(res_s, SendMessageResult) and text_add:
-                            mb_add = NewMessageBody(text_add, link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify)
-                            self.msg.send_message(mb_add, user_id=el)
+                            res = self.send_message_long_text(
+                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify),
+                                text_add,
+                                user_id=el,
+                            )
                         res = res or res_s
                     except Exception as e:
                         self.lgz.exception(e)
@@ -751,8 +764,11 @@ class TamTamBot(object):
                     if isinstance(chat, Chat):
                         chat = ChatExt(chat, self.title)
                         if isinstance(chat, ChatExt):
-                            res = self.msg.send_message(NewMessageBody(
-                                main_info + (' (%s)' % chat.chat_name), link=update.link), user_id=update.user_id)
+                            res = bool(self.send_message_long_text(
+                                NewMessageBody(link=update.link),
+                                main_info + (' (%s)' % chat.chat_name),
+                                user_id=update.user_id,
+                            ))
             except Exception as e:
                 self.lgz.exception(e)
 
@@ -760,7 +776,11 @@ class TamTamBot(object):
                 if chat_type == ChatType.DIALOG:
                     try:
                         if update and update.chat_id:
-                            res = self.msg.send_message(NewMessageBody(main_info, link=update.link), chat_id=update.chat_id)
+                            res = bool(self.send_message_long_text(
+                                NewMessageBody(link=update.link),
+                                main_info,
+                                chat_id=update.chat_id,
+                            ))
                     except Exception as e:
                         self.lgz.exception(e)
                 else:
