@@ -692,11 +692,11 @@ class TamTamBot(object):
         return res
 
     # noinspection DuplicatedCode
-    def send_admin_message(self, text, update=None, exception=None, notify=True):
-        # type: (str, UpdateCmn, Exception, bool) -> bool
-        link = None
-        if isinstance(update, UpdateCmn):
-            link = update.link
+    def send_admin_message(self, text, update=None, exception=None, notify=True, link=None):
+        # type: (str, UpdateCmn, Exception, bool, NewMessageLink) -> bool
+        if not link:
+            if isinstance(update, UpdateCmn):
+                link = update.link
         err = ''
         if exception:
             err = traceback.format_exc()
@@ -745,17 +745,20 @@ class TamTamBot(object):
 
         return res
 
-    def send_error_message(self, update, error=None):
-        # type: (UpdateCmn, Exception) -> bool
+    def send_error_message(self, update, error=None, link=None):
+        # type: (UpdateCmn, Exception, NewMessageLink) -> bool
         if not isinstance(update, UpdateCmn):
             return False
 
+        if not link:
+            if isinstance(update, UpdateCmn):
+                link = update.link
         res = None
         main_info = ('{%s} ' % self.title) + _('Your request (%s) cannot be completed at this time (Maintenance mode etc.). Try again later.') % (update.cmd or '')
         chat_type = update.chat_type
 
         if error:
-            self.send_admin_message('error', update, error)
+            self.send_admin_message('error', update, error, link=link)
 
         if not self.update_is_service(update):
             try:
@@ -765,7 +768,7 @@ class TamTamBot(object):
                         chat = ChatExt(chat, self.title)
                         if isinstance(chat, ChatExt):
                             res = bool(self.send_message_long_text(
-                                NewMessageBody(link=update.link),
+                                NewMessageBody(link=link),
                                 main_info + (' (%s)' % chat.chat_name),
                                 user_id=update.user_id,
                             ))
@@ -777,14 +780,14 @@ class TamTamBot(object):
                     try:
                         if update and update.chat_id:
                             res = bool(self.send_message_long_text(
-                                NewMessageBody(link=update.link),
+                                NewMessageBody(link=link),
                                 main_info,
                                 chat_id=update.chat_id,
                             ))
                     except Exception as e:
                         self.lgz.exception(e)
                 else:
-                    self.send_admin_message(str(main_info), update)
+                    self.send_admin_message(str(main_info), update, link=link)
 
         return res
 
