@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import traceback
 from datetime import datetime
+from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from threading import Thread
 from time import sleep
@@ -29,7 +30,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
-from .utils.utils import str_to_int, get_environ_int, put_into_text_storage
+from .utils.utils import str_to_int, get_environ_int, put_into_text_storage, datetime_to_unix_time
 
 
 class TamTamBotException(Exception):
@@ -972,9 +973,9 @@ class TamTamBot(object):
             self.lgz.debug('MessageCallbackUpdate:\r\n%s' % update.callback.payload)
             res = self.process_command(update)
             if res:
-                self.msg.delete_message(update.message.body.mid)
+                self.delete_message(update.message.body.mid)
         else:
-            res = self.msg.delete_message(update.message.body.mid)
+            res = self.delete_message(update.message.body.mid)
         return res
 
     def handle_message_edited_update(self, update):
@@ -1560,6 +1561,13 @@ class TamTamBot(object):
             if update_current:
                 self.msg.answer_on_callback(update_current.callback.callback_id, CallbackAnswer(notification=notification))
 
+    def delete_message(self, mid):
+        # type: (str) -> SimpleQueryResult
+        try:
+            return self.msg.delete_message(mid)
+        except ApiException:
+            pass
+
     @staticmethod
     def get_old_mid(prm):
         # type: (UpdateCmn or Message) -> str
@@ -1583,6 +1591,25 @@ class TamTamBot(object):
             res = 'mid.%016x%016x' % (chat_id & (2 ** 64 - 1), body_seq & (2 ** 64 - 1))
 
         return res
+
+    def get_chat_messages(self, chat_id, dt_end=None, dt_start=None, max_msg=1000):
+        # type: (int, datetime, datetime, int or None) -> [Message]
+        message_list = []
+        ut_start = datetime_to_unix_time(dt_start) if dt_start else None
+        dt_end = dt_end or datetime.now().astimezone() + timedelta(seconds=1)
+        ut_end = datetime_to_unix_time(dt_end)
+        # [(_.timestamp, datetime_from_unix_time(_.timestamp)) for _ in m_l]
+        while True:
+            m_l = self.msg.get_messages(chat_id=chat_id, count=MessagesApi.MAX_MESSAGE_COUNT, _from=ut_end).messages
+            if not m_l:
+                break
+            if ut_start and m_l[0].timestamp < ut_start:
+                break
+            message_list.extend(m_l)
+            ut_end = m_l[-1].timestamp - 1
+            if max_msg and len(message_list) >= max_msg:
+                break
+        return message_list
 
     def get_messages(self, mid_list):
         # type: ([str]) -> [Message]
