@@ -1609,7 +1609,7 @@ class TamTamBot(object):
             ut_end = m_l[-1].timestamp - 1
             if max_msg and len(message_list) >= max_msg:
                 break
-        return message_list
+        return message_list[:max_msg]
 
     def get_messages(self, mid_list):
         # type: ([str]) -> [Message]
