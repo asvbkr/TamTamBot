@@ -1487,7 +1487,6 @@ class TamTamBot(object):
 
     # noinspection PyIncorrectDocstring
     def send_message(self, mb, max_retry=20, sl_time=1, **kwargs):
-        # type: (NewMessageBody, int, int, dict) -> SendMessageResult
         """
         :param NewMessageBody mb: (required)
         :param int max_retry: maximum number of repetitions
@@ -1509,9 +1508,13 @@ class TamTamBot(object):
                 return res_msg
             except ApiException as e:
                 self.lgz.debug('Warning: status:%(status)s; reason:%(reason)s; body:%(body)s' % {'status': e.status, 'reason': e.reason, 'body': e.body})
-                if rpt >= max_retry or not (e.status == 400 and e.body.find('"code":"attachment.not.ready"') >= 0):
+                if rpt >= max_retry or not (e.status == 400 and e.body.find('"code":"attachment.not.ready"') >= 0 or e.status == 429):
                     raise
-                sleep(sl_time)
+                slt = sl_time
+                if e.status == 429:  # too.many.requests
+                    slt = 2
+                self.lgz.debug(str(rpt) + ' sleep: %s sec.' % slt)
+                sleep(slt)
 
     # noinspection PyIncorrectDocstring
     def send_message_long_text(self, mb, long_text, max_retry=20, sl_time=1, **kwargs):
