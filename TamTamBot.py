@@ -48,6 +48,8 @@ class TamTamBot(object):
 
     SERVICE_STR_SEQUENCE = chr(8203) + chr(8203) + chr(8203)
 
+    last_mcb_update = {}
+
     def __init__(self):
         # Общие настройки - логирование, кодировка и т.п.
 
@@ -963,6 +965,7 @@ class TamTamBot(object):
 
     def handle_message_callback_update(self, update):
         # type: (MessageCallbackUpdate) -> bool
+        self.last_mcb_update[update.message.recipient.chat_id] = update
         ind = UpdateCmn.get_callback_index(update.callback)
         if self.callbacks_list.get(ind):
             self.callbacks_list[ind] = [update.callback.timestamp, self.callbacks_list[ind][0]]
@@ -1187,10 +1190,10 @@ class TamTamBot(object):
 
                     admins = {}
                     if chat.type == ChatType.DIALOG:
-                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=True,
+                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=True, last_activity_time=0,
                                                           permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                         dialog_user_id = self.user_id ^ chat.chat_id
-                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=False,
+                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=False, last_activity_time=0,
                                                             permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
                     else:
                         try:
@@ -1561,6 +1564,8 @@ class TamTamBot(object):
             update_current = None
             if isinstance(update.update_current, MessageCallbackUpdate):
                 update_current = update.update_current
+            else:
+                update_current = self.last_mcb_update.get(update.chat_id)
             if update_current:
                 self.msg.answer_on_callback(update_current.callback.callback_id, CallbackAnswer(notification=notification))
 
