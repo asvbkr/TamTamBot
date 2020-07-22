@@ -1368,6 +1368,31 @@ class TamTamBot(object):
             self.limited_buttons_set(self.limited_buttons_index(mid=mid), base_buttons)
         return res
 
+    def view_buttons_lim(self, title, buttons, user_id=None, chat_id=None, link=None, update=None, lim_items=None, lim_notify=None, lim_notify_g=None, lim_notify_admin=None,
+                         add_info=False, add_close_button=False, start_from=None, max_lines=None):
+        # type: (str or None, list, int or None, int or None, NewMessageLink, Update, int, str, str, str, bool, bool, int or None, int or None) -> SendMessageResult
+        if lim_items:
+            first_call = update and UpdateCmn(update).cmd_args is None
+            num_subscribers_cur = len(buttons)
+            if num_subscribers_cur > lim_items:
+                b = buttons or []
+                buttons = []
+                i = 0
+                for e in b:
+                    if i >= lim_items:
+                        break
+                    i += 1
+                    buttons.append(e)
+                if lim_notify_admin and first_call:
+                    self.send_admin_message(lim_notify_admin)
+            if lim_notify and ((lim_notify_g and num_subscribers_cur >= lim_items) or (not lim_notify_g and num_subscribers_cur > lim_items)):
+                m_t = lim_notify
+                if lim_notify_g and num_subscribers_cur > lim_items:
+                    m_t += '\n' + lim_notify_g
+                title = f'{title}\n\n{m_t}'
+        return self.view_buttons(title, buttons, user_id, chat_id, link=link, update=update,
+                                 add_info=add_info, add_close_button=add_close_button, start_from=start_from, max_lines=max_lines)
+
     def get_yes_no_buttons(self, cmd_dict):
         # type: ([{}]) -> list
         if not cmd_dict:
@@ -1561,7 +1586,6 @@ class TamTamBot(object):
         :param str notification:
         """
         if update and notification:
-            update_current = None
             if isinstance(update.update_current, MessageCallbackUpdate):
                 update_current = update.update_current
             else:
