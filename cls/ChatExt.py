@@ -66,7 +66,9 @@ class ChatExt(object):
         if self._lang is None:
             self._lang = ''
             if isinstance(self.chat, Chat):
-                if re.findall(r'[а-яА-я]{4,}', '%s\n\n\n%s\n\n\n%s' % (self.chat.title, self.chat.description, self.chat_name_ext)) or self.chat_name_ext.startswith('чат '):
+                if not self.chat_name_ext.startswith('dialog ') and (
+                        re.findall(r'[а-яА-я]{4,}', '%s\n\n\n%s\n\n\n%s' % (self.chat.title, self.chat.description, self.chat_name_ext)) or self.chat_name_ext.startswith('чат ')
+                ):
                     self._lang = 'ru'
         return self._lang
 
