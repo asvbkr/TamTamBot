@@ -1186,8 +1186,8 @@ class TamTamBot(object):
                     break
         return chats_available
 
-    # Формирует список чатов пользователей, в которых админы и пользователь и бот
-    def get_all_chats_with_bot_admin(self):
+    # Формирует список чатов пользователей, в которых админы и пользователь и бот с возможностью доп проверки разрешений
+    def get_all_chats_with_bot_admin(self, admin_only=False):
         # type: ([int]) -> dict
         marker = None
         chats_available = {'Chats': {}, 'Members': {}, 'ChatsMembers': {}, }
@@ -1252,7 +1252,7 @@ class TamTamBot(object):
                                 chat_ext.admin_permissions[admin.user_id] = admin.permissions
                                 self.adm_perm_correct(chat_ext.admin_permissions[admin.user_id])
 
-                                if chat_ext and self.chat_is_allowed(chat_ext, admin.user_id):
+                                if chat_ext and (admin_only or self.chat_is_allowed(chat_ext, admin.user_id)):
                                     if chats_available_cm.get(admin.user_id) is None:
                                         chats_available_cm[admin.user_id] = {}
                                     if chats_available_c.get(chat_ext.chat_id) is None:
