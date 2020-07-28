@@ -24,7 +24,7 @@ class CallbackButtonCmd(CallbackButton):
                 payload['cmd_args'] = cmd_args
             if mid:
                 payload['mid'] = mid
-        super(CallbackButtonCmd, self).__init__(text[:Button.MAX_TEXT_LENGTH], json.dumps(payload), intent, type_cb)
+        super(CallbackButtonCmd, self).__init__(text[:int(Button.MAX_TEXT_LENGTH*0.95)], json.dumps(payload), intent, type_cb)
 
     @property
     def cmd(self):
