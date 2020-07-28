@@ -569,9 +569,9 @@ class TamTamBot(object):
                 chs = _('Chats not found.')
             else:
                 chs = _('Bot connected to the chat:\n\n') + (u'\n'.join(list_c))
-            mb = NewMessageBody(chs, link=update.link)
+            mb = NewMessageBody(link=update.link)
             return bool(
-                self.msg.send_message(mb, user_id=update.user_id)
+                self.send_message_long_text(mb, long_text=chs, user_id=update.user_id)
             )
         else:  # Текстовый ответ команде не предусмотрен
             pass
