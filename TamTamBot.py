@@ -26,7 +26,8 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UserAddedToChatUpdate, UserRemovedFromChatUpdate, ChatTitleChangedUpdate, NewMessageLink, UploadType, \
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType, \
-    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer
+    GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer, UserWithPhoto, \
+    User
 from openapi_client.rest import ApiException, RESTResponse
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
 from .utils.lng import get_text as _, translation_activate
@@ -298,6 +299,21 @@ class TamTamBot(object):
             sys.setdefaultencoding(encoding)
             self.lgz.info('The default encoding is set to %s' % sys.getdefaultencoding())
 
+    def check_threads(self):
+        self.lgz.info('%s of %s threads are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+        while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
+            err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
+            self.lgz.debug(err)
+            threads = TamTamBot.threads.copy()
+            for t in threads:
+                if not t.is_alive():
+                    self.lgz.debug('stop %s!' % t)
+                    t.join()
+                    TamTamBot.threads.remove(t)
+                else:
+                    self.lgz.debug('still work %s!' % t)
+            self.lgz.info('After trying to release: %s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+
     @classmethod
     def check_commands(cls, commands):
         # type: ([BotCommand]) -> []
@@ -430,9 +446,9 @@ class TamTamBot(object):
         Например, для команды "start" см. ниже метод cmd_handler_start
         """
         res_w_m = None
-
         update = UpdateCmn(update, self)
         try:
+            self.set_user_language_by_update(update.update_current, update.user_locale, soft_setting=True)
             if not update.chat_id:
                 return False
             if update.cmd_bot and (update.cmd_bot != self.username):
@@ -479,8 +495,6 @@ class TamTamBot(object):
             return False
         if not update.this_cmd_response:  # Прямой вызов команды
             if not (hasattr(update.update_current, 'payload') and update.update_current.payload):
-                if isinstance(update.update_current, BotStartedUpdate):
-                    self.set_user_language_by_update(update.update_current, update.user_locale, soft_setting=True)
                 return bool(
                     self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
                 )
@@ -541,11 +555,15 @@ class TamTamBot(object):
                 return False
             self.lgz.debug('update.chat_id=%s, update.user_id=%s, update.user_name=%s' % (update.chat_id, update.user_id, update.user_name))
 
-            chats_available = self.get_users_chats_with_bot(update.user_id)
+            chats_available = self.get_users_chats_with_bot_adm(update.user_id, True)
             list_c = []
+            i = 0
             for chat_ext in sorted(chats_available.values()):
-                list_c.append(_('%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n') %
-                              {'chat_name': chat_ext.chat_name_ext, 'participants': chat_ext.chat.participants_count, 'permissions': chat_ext.admin_permissions.get(self.user_id)})
+                i += 1
+                list_c.append(('%s. — ' % i) + _('%(chat_name)s: participants: %(participants)s; permissions: %(permissions)s\n') %
+                              {'chat_name': chat_ext.chat_name_ext, 'participants': chat_ext.chat.participants_count,
+                               'permissions': chat_ext.admin_permissions.get(self.user_id) or chat_ext.admin_permissions.get(str(self.user_id)),
+                               })
 
             if not list_c:
                 chs = _('Chats not found.')
@@ -581,16 +599,7 @@ class TamTamBot(object):
                     self.lgz.debug(ul)
                     for update in ul.updates:
                         self.lgz.debug(type(update))
-                        self.lgz.info('%s out of %s threads are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
-                        while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
-                            err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
-                            self.lgz.debug(err)
-                            for t in TamTamBot.threads:
-                                if not t.is_alive():
-                                    self.lgz.debug('stop %s!' % t)
-                                    t.join()
-                                    TamTamBot.threads.remove(t)
-                            self.lgz.info('After trying to release: %s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+                        self.check_threads()
 
                         t = Thread(target=self.handle_update, args=(update,))
                         TamTamBot.threads.append(t)
@@ -620,15 +629,7 @@ class TamTamBot(object):
     # Обработка тела запроса
     def handle_request_body(self, request_body):
         # type: (bytes) -> None
-        while len(TamTamBot.threads) >= TamTamBot.work_threads_max_count():
-            err = 'Threads pool is full. The maximum number (%s) is used. Awaiting release.' % TamTamBot.work_threads_max_count()
-            self.lgz.debug(err)
-            for t in TamTamBot.threads:
-                if not t.is_alive():
-                    self.lgz.debug('stop %s!' % t)
-                    t.join()
-                    TamTamBot.threads.remove(t)
-            self.lgz.info('After trying to release: %s out of %s are used.' % (len(TamTamBot.threads), TamTamBot.work_threads_max_count()))
+        self.check_threads()
 
         if len(TamTamBot.threads) < TamTamBot.work_threads_max_count():
             t = Thread(target=self.handle_request_body_, args=(request_body,))
@@ -1091,6 +1092,14 @@ class TamTamBot(object):
             TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.CHANGE_CHAT_INFO)
             TamTamBot.adm_permission_add(ce_ap, ChatAdminPermission.PIN_MESSAGE)
 
+    def get_dialog_name(self, title, user=None, chat=None, user_id=None):
+        # type: (str, User, Chat, int) -> str
+        user_id = user_id or (user.user_id if user else None)
+        if user_id and chat and not user:
+            user = self.get_chat_admins(chat.chat_id).get(user_id) if chat.type != ChatType.DIALOG else self.chats.get_chat(chat.chat_id).dialog_with_user
+        if user:
+            return '%s (%s|%s) -> ' % (user.user_id, user.name, user.username) + title
+
     # Определяет доступность чата для пользователя
     def chat_is_available(self, chat, user_id):
         # type: (Chat, int) -> ChatExt or None
@@ -1118,10 +1127,11 @@ class TamTamBot(object):
                     if err.status != 403:
                         raise
                 if members or chat.type == ChatType.DIALOG:
-                    chat_ext = ChatExt(chat, self.title)
+                    chat_ext = None
                     if members and chat.type != ChatType.DIALOG:
                         current_user = members.get(user_id)
                         if current_user and current_user.is_admin:
+                            chat_ext = ChatExt(chat, self.get_dialog_name(self.title, user=current_user))
                             if bot_user:
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
                                 self.adm_perm_correct(chat_ext.admin_permissions[self.user_id])
@@ -1130,14 +1140,16 @@ class TamTamBot(object):
                             else:
                                 self.lgz.debug('Pass, because bot with id=%s not found into chat %s members list' % (self.user_id, chat.chat_id))
                     elif chat.type == ChatType.DIALOG:
+                        current_user = chat.dialog_with_user
                         # Вот так интересно вычисляется id диалога бота с пользователем
-                        user_dialog_id = self.user_id ^ user_id
-                        if chat_ext.chat.chat_id == user_dialog_id:
+                        # user_dialog_id = self.user_id ^ user_id
+                        chat_ext = ChatExt(chat, self.get_dialog_name(self.title, user=current_user))
+                        if user_id == current_user.user_id:
                             chat_ext.admin_permissions[self.user_id] = [ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
                             chat_ext.admin_permissions[user_id] = [ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
                         else:
                             self.lgz.debug('Exit, because dialog_id=%s not for user_id=%s' % (chat.chat_id, user_id))
-                    if chat_ext.admin_permissions:
+                    if chat_ext and chat_ext.admin_permissions:
                         return chat_ext
                     else:
                         self.lgz.debug('Pass, because for user_id=%s  not admin permissions into chat_id=%s' % (user_id, chat.chat_id))
@@ -1146,9 +1158,14 @@ class TamTamBot(object):
             else:
                 self.lgz.debug('chat => chat_id=%(id)s - pass, because bot not active' % {'id': chat.chat_id})
 
-    # Формирует список чатов пользователя, в которых админы и он и бот
+    # Формирует список чатов пользователя, в которых админы и он и бот с доп проверкой разрешений
     def get_users_chats_with_bot(self, user_id):
         # type: (int) -> dict
+        return self.get_users_chats_with_bot_adm(user_id, False)
+
+    # Формирует список чатов пользователя, в которых админы и он и бот с возможностью доп проверки разрешений
+    def get_users_chats_with_bot_adm(self, user_id, admin_only):
+        # type: (int, bool) -> dict
         marker = None
         chats_available = {}
         while True:
@@ -1162,7 +1179,7 @@ class TamTamBot(object):
                     self.lgz.debug('Found chat => chat_id=%(id)s; type: %(type)s; status: %(status)s; title: %(title)s; participants: %(participants)s; owner: %(owner)s' %
                                    {'id': chat.chat_id, 'type': chat.type, 'status': chat.status, 'title': chat.title, 'participants': chat.participants_count, 'owner': chat.owner_id})
                     chat_ext = self.chat_is_available(chat, user_id)
-                    if chat_ext and self.chat_is_allowed(chat_ext, user_id):
+                    if chat_ext and (admin_only or self.chat_is_allowed(chat_ext, user_id)):
                         chats_available[chat.chat_id] = chat_ext
                         self.lgz.debug('chat => chat_id=%(id)s added into list available chats' % {'id': chat.chat_id})
                 if not marker:
@@ -1173,8 +1190,21 @@ class TamTamBot(object):
     def get_all_chats_with_bot_admin(self):
         # type: ([int]) -> dict
         marker = None
-        chats_available = {}
+        chats_available = {'Chats': {}, 'Members': {}, 'ChatsMembers': {}, }
+        chats_available_cm = chats_available['ChatsMembers']
+        chats_available_m = chats_available['Members']
+        chats_available_c = chats_available['Chats']
         chats_all = {}
+        bot = self.info
+        if isinstance(bot, BotInfo):
+            bot = ChatMember(
+                description=bot.description, user_id=bot.user_id, name=bot.name, username=bot.username,
+                is_bot=bot.is_bot, last_activity_time=bot.last_activity_time,
+                avatar_url=bot.avatar_url, full_avatar_url=bot.full_avatar_url,
+                last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES],
+            )
+
         while True:
             if marker:
                 chat_list = self.chats.get_chats(marker=marker)
@@ -1190,11 +1220,18 @@ class TamTamBot(object):
 
                     admins = {}
                     if chat.type == ChatType.DIALOG:
-                        admins[self.user_id] = ChatMember(user_id=self.user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=True, last_activity_time=0,
-                                                          permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
-                        dialog_user_id = self.user_id ^ chat.chat_id
-                        admins[dialog_user_id] = ChatMember(user_id=dialog_user_id, name='n/a', last_access_time=0, is_owner=False, is_admin=True, join_time=0, is_bot=False, last_activity_time=0,
-                                                            permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES])
+                        dialog_user = chat.dialog_with_user
+                        if isinstance(dialog_user, UserWithPhoto):
+                            dialog_user = ChatMember(
+                                description=dialog_user.description, user_id=dialog_user.user_id, name=dialog_user.name, username=dialog_user.username,
+                                is_bot=dialog_user.is_bot, last_activity_time=dialog_user.last_activity_time,
+                                avatar_url=dialog_user.avatar_url, full_avatar_url=dialog_user.full_avatar_url,
+                                last_access_time=0, is_owner=False, is_admin=True, join_time=0,
+                                permissions=[ChatAdminPermission.WRITE, ChatAdminPermission.READ_ALL_MESSAGES]
+                            )
+                        # dialog_user_id = self.user_id ^ chat.chat_id
+                        admins[dialog_user.user_id] = dialog_user
+                        admins[bot.user_id] = bot
                     else:
                         try:
                             admins = self.get_chat_admins(chat.chat_id)
@@ -1208,7 +1245,7 @@ class TamTamBot(object):
                                 # chat_ext = chats_available[admin.user_id].get(chat.chat_id)
                                 chat_ext = chats_all.get(chat.chat_id)
                                 if not isinstance(chat_ext, ChatExt):
-                                    chat_ext = ChatExt(chat, self.title)
+                                    chat_ext = ChatExt(chat, self.get_dialog_name(self.title, user=admin))
                                     chats_all[chat.chat_id] = chat_ext
                                 chat_ext.admin_permissions[self.user_id] = bot_user.permissions
                                 self.adm_perm_correct(chat_ext.admin_permissions[self.user_id])
@@ -1216,10 +1253,14 @@ class TamTamBot(object):
                                 self.adm_perm_correct(chat_ext.admin_permissions[admin.user_id])
 
                                 if chat_ext and self.chat_is_allowed(chat_ext, admin.user_id):
-                                    if chats_available.get(admin.user_id) is None:
-                                        chats_available[admin.user_id] = {}
+                                    if chats_available_cm.get(admin.user_id) is None:
+                                        chats_available_cm[admin.user_id] = {}
+                                    if chats_available_c.get(chat_ext.chat_id) is None:
+                                        chats_available_c[chat_ext.chat_id] = chat_ext
+                                    if chats_available_m.get(admin.user_id) is None:
+                                        chats_available_m[admin.user_id] = admins.get(admin.user_id)
 
-                                    chats_available[admin.user_id][chat.chat_id] = chat_ext
+                                    chats_available_cm[admin.user_id][chat.chat_id] = chat_ext
                     else:
                         self.lgz.debug('Pass, because for chat_id=%s bot (id=%s) is not admin' % (chat.chat_id, self.user_id))
                 if not marker:
