@@ -1096,7 +1096,10 @@ class TamTamBot(object):
         # type: (str, User, Chat, int) -> str
         user_id = user_id or (user.user_id if user else None)
         if user_id and chat and not user:
-            user = self.get_chat_admins(chat.chat_id).get(user_id) if chat.type != ChatType.DIALOG else self.chats.get_chat(chat.chat_id).dialog_with_user
+            try:
+                user = self.get_chat_admins(chat.chat_id).get(user_id) if chat.type != ChatType.DIALOG else self.chats.get_chat(chat.chat_id).dialog_with_user
+            except ApiException as e:
+                return 'Error: %s (%s|%s) -> ' % (user_id, chat.chat_id, chat.title) + title
         if user:
             return '%s (%s|%s) -> ' % (user.user_id, user.name, user.username) + title
 
