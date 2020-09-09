@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import json
 import re
+from re import Match
 
 from TamTamBot.utils.utils import get_param_value, str_to_int, get_md5_hash_str
 from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message, Recipient, Callback
@@ -43,7 +44,7 @@ class UpdateCmn(object):
                 self.cmd_bot = payload.get('bot')
                 self.cmd = payload.get('cmd')
                 self.cmd_args = payload.get('cmd_args')
-                mid = payload.get('mid')
+                mid = payload.get('mid') or update.message.body.mid
                 if mid:
                     self.link = NewMessageLink(MessageLinkType.REPLY, mid)
             else:  # Для совместимости со старым форматом payload
@@ -73,12 +74,14 @@ class UpdateCmn(object):
             # * update.cmd_arg['l1']['c1'] - строка1, колонка 1
             # * update.cmd_arg['c_parts'] - список строк, каждая из которых содержит список колонок
             # Разделение на строки и колоонки производится по реальным строкам и элементам в строке, разделённых пробелом
-            f = re.match(r'(/\w+) (.+)', self.cmd, re.DOTALL)
-            if f:
+            # Также возможно передать аргументы в команде с двойными подчёркиваниями вида "/set_score__127__145".
+            # В этом случае ТТ отображает команду с аргументом как единую как ссылку
+            f = re.match(r'(/[a-zA-Z_]+)(_{2}| )(.+)', self.cmd, re.DOTALL)
+            if isinstance(f, Match):
                 self.cmd = f.group(1)
                 self.cmd_args = self.cmd_args or {}
                 i = 1
-                for ln in f.group(2).split('\n'):
+                for ln in f.group(3).split('\n'):
                     if not isinstance(self.cmd_args.get('c_parts'), list):
                         self.cmd_args['c_parts'] = [[]]
                     else:
@@ -86,7 +89,7 @@ class UpdateCmn(object):
 
                     ind_l = 'l%s' % i
                     j = 1
-                    for c in ln.split(' '):
+                    for c in re.split(r'_{2}| ', ln):
                         if len(c.strip()) > 0:
                             self.cmd_args['c_parts'][-1].append(c)
 
