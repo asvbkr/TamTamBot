@@ -79,7 +79,7 @@ class TamTamBot(object):
         self.trace_requests = True if os.environ.get('TT_BOT_TRACE_REQUESTS', 'False').lower() == 'true' else False
 
         logging_level = os.environ.get('TT_BOT_LOGGING_LEVEL', 'INFO')
-        # noinspection PyProtectedMember
+        # noinspection PyProtectedMember,PyUnresolvedReferences
         logging_level = logging._nameToLevel.get(logging_level)
         if logging_level is None:
             self.logging_level = logging.DEBUG if self.trace_requests else logging.INFO
@@ -602,6 +602,7 @@ class TamTamBot(object):
                         self.check_threads()
 
                         t = Thread(target=self.handle_update, args=(update,))
+                        t.name = f'pooling-thr'
                         TamTamBot.threads.append(t)
                         t.setDaemon(True)
                         self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
@@ -635,6 +636,7 @@ class TamTamBot(object):
             t = Thread(target=self.handle_request_body_, args=(request_body,))
             # noinspection PyBroadException
             try:
+                t.name = f'webhook-thr'
                 TamTamBot.threads.append(t)
                 t.setDaemon(True)
                 self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
@@ -1099,7 +1101,7 @@ class TamTamBot(object):
             try:
                 user = self.get_chat_admins(chat.chat_id).get(user_id) if chat.type != ChatType.DIALOG else self.chats.get_chat(chat.chat_id).dialog_with_user
             except ApiException as e:
-                return 'Error: %s (%s|%s) -> ' % (user_id, chat.chat_id, chat.title) + title
+                return 'Error: %s (%s|%s) -> %s' % (user_id, chat.chat_id, chat.title, e) + title
         if user:
             return '%s (%s|%s) -> ' % (user.user_id, user.name, user.username) + title
 
@@ -1696,7 +1698,7 @@ class TamTamBot(object):
         except ApiException:
             pass
 
-    # Возвращает список сообщений по списку mid'ов
+    # Возвращает список сообщений по списку mid ов
     def get_message_list(self, mid_list):
         # type: ([str]) -> [Message]
         message_list = []
