@@ -602,8 +602,8 @@ class TamTamBot(object):
                         self.check_threads()
 
                         t = Thread(target=self.handle_update, args=(update,))
-                        t.name = f'pooling-thr'
                         TamTamBot.threads.append(t)
+                        t.name = f'pooling-thr-{len(TamTamBot.threads):04d}'
                         t.setDaemon(True)
                         self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
                         t.start()
@@ -636,8 +636,8 @@ class TamTamBot(object):
             t = Thread(target=self.handle_request_body_, args=(request_body,))
             # noinspection PyBroadException
             try:
-                t.name = f'webhook-thr'
                 TamTamBot.threads.append(t)
+                t.name = f'webhook-thr-{len(TamTamBot.threads):04d}'
                 t.setDaemon(True)
                 self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
                 t.start()
