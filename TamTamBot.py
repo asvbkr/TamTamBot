@@ -1607,7 +1607,7 @@ class TamTamBot(object):
         res_list = []
 
         if not isinstance(long_text, list):
-            text_storage = put_into_text_storage([], long_text, NewMessageBody.MAX_BODY_LENGTH * 1)
+            text_storage = put_into_text_storage([], long_text, NewMessageBody.MAX_BODY_LENGTH * 0.9)
         else:
             text_storage = long_text
         link_p = mb.link
