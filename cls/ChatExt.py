@@ -2,7 +2,7 @@
 import re
 
 from openapi_client import Chat, ChatType
-from ..utils.lng import get_text as _
+from ttgb_cmn.lng import get_text as _
 
 
 class ChatExt(object):

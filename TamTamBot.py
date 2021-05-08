@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 import json
-import logging
 import math
 import os
 import re
@@ -9,7 +8,6 @@ import sys
 import traceback
 from datetime import datetime
 from datetime import timedelta
-from logging.handlers import RotatingFileHandler
 from threading import Thread
 from time import sleep
 
@@ -29,9 +27,9 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer, UserWithPhoto, \
     User
 from openapi_client.rest import ApiException, RESTResponse
+from ttgb_cmn.cmn import Utils, BotLogger
+from ttgb_cmn.lng import get_text as _, translation_activate
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
-from .utils.lng import get_text as _, translation_activate
-from .utils.utils import str_to_int, get_environ_int, put_into_text_storage, datetime_to_unix_time
 
 
 class TamTamBotException(Exception):
@@ -51,24 +49,12 @@ class TamTamBot(object):
 
     last_mcb_update = {}
 
+    lgz = BotLogger.get_instance()
+
     def __init__(self):
         # Общие настройки - логирование, кодировка и т.п.
 
         self.waiting_msg = False  # Выводить вейтерное сообщение
-
-        # noinspection SpellCheckingInspection
-        formatter = logging.Formatter('%(asctime)s - %(name)s[%(threadName)s-%(thread)d] - %(levelname)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
-        self.lgz = logging.getLogger('%s' % self.__class__.__name__)
-
-        log_file_max_bytes = get_environ_int('TT_BOT_LOGGING_FILE_MAX_BYTES', 10485760)
-        log_file_backup_count = get_environ_int('TT_BOT_LOGGING_FILE_BACKUP_COUNT', 10)
-        fh = RotatingFileHandler("bots_%s.log" % self.__class__.__name__, mode='a', maxBytes=log_file_max_bytes, backupCount=log_file_backup_count, encoding='UTF-8')
-        fh.setFormatter(formatter)
-        self.lgz.addHandler(fh)
-
-        sh = logging.StreamHandler(stream=sys.stdout)
-        sh.setFormatter(formatter)
-        self.lgz.addHandler(sh)
 
         self.set_encoding_for_p2()
 
@@ -76,15 +62,7 @@ class TamTamBot(object):
         self.conf = Configuration()
         self.conf.api_key['access_token'] = self.token
 
-        self.trace_requests = True if os.environ.get('TT_BOT_TRACE_REQUESTS', 'False').lower() == 'true' else False
-
-        logging_level = os.environ.get('TT_BOT_LOGGING_LEVEL', 'INFO')
-        # noinspection PyProtectedMember,PyUnresolvedReferences
-        logging_level = logging._nameToLevel.get(logging_level)
-        if logging_level is None:
-            self.logging_level = logging.DEBUG if self.trace_requests else logging.INFO
-        else:
-            self.logging_level = logging_level
+        self.trace_requests = self.lgz.trace_requests
 
         self.polling_sleep_time = 5
         self.polling_error_sleep_time = 5
@@ -189,7 +167,7 @@ class TamTamBot(object):
                 if f_users:
                     l_el = []
                     for _ in f_users.groups()[0].split(','):
-                        el = str_to_int(_)
+                        el = Utils.str_to_int(_)
                         if el:
                             if el not in l_el:
                                 l_el.append(el)
@@ -197,7 +175,7 @@ class TamTamBot(object):
                 if f_chats:
                     l_el = []
                     for _ in f_chats.groups()[0].split(','):
-                        el = str_to_int(_)
+                        el = Utils.str_to_int(_)
                         if el:
                             if el not in l_el:
                                 l_el.append(el)
@@ -279,16 +257,6 @@ class TamTamBot(object):
     def trace_requests(self, val):
         self.conf.debug = val
 
-    @property
-    def logging_level(self):
-        # type: () -> int
-        return self._logging_level
-
-    @logging_level.setter
-    def logging_level(self, val):
-        self._logging_level = val
-        self.lgz.setLevel(self._logging_level)
-
     def set_encoding_for_p2(self, encoding='utf8'):
         if six.PY3:
             return
@@ -360,7 +328,7 @@ class TamTamBot(object):
     @classmethod
     def work_threads_max_count(cls):
         if cls._work_threads_max_count is None:
-            cls._work_threads_max_count = str_to_int(os.environ.get('TT_BOT_WORK_THREADS_MAX_COUNT'))
+            cls._work_threads_max_count = Utils.str_to_int(os.environ.get('TT_BOT_WORK_THREADS_MAX_COUNT'))
             if cls._work_threads_max_count is None:
                 cls._work_threads_max_count = 15
 
@@ -603,7 +571,7 @@ class TamTamBot(object):
 
                         t = Thread(target=self.handle_update, args=(update,))
                         TamTamBot.threads.append(t)
-                        t.name = f'pooling-thr-{len(TamTamBot.threads):04d}'
+                        t.name = 'pooling-thr-%04d' % len(TamTamBot.threads)
                         t.setDaemon(True)
                         self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
                         t.start()
@@ -637,7 +605,7 @@ class TamTamBot(object):
             # noinspection PyBroadException
             try:
                 TamTamBot.threads.append(t)
-                t.name = f'webhook-thr-{len(TamTamBot.threads):04d}'
+                t.name = 'webhook-thr-%04d' % len(TamTamBot.threads)
                 t.setDaemon(True)
                 self.lgz.debug('Thread started. Threads count=%s' % len(TamTamBot.threads))
                 t.start()
@@ -1435,7 +1403,7 @@ class TamTamBot(object):
                 m_t = lim_notify
                 if lim_notify_g and num_subscribers_cur > lim_items:
                     m_t += '\n' + lim_notify_g
-                title = f'{title}\n\n{m_t}'
+                title = '%s\n\n{m_t}' % title
         return self.view_buttons(title, buttons, user_id, chat_id, link=link, update=update,
                                  add_info=add_info, add_close_button=add_close_button, start_from=start_from, max_lines=max_lines)
 
@@ -1607,7 +1575,7 @@ class TamTamBot(object):
         res_list = []
 
         if not isinstance(long_text, list):
-            text_storage = put_into_text_storage([], long_text, NewMessageBody.MAX_BODY_LENGTH * 0.9)
+            text_storage = Utils.put_into_text_storage([], long_text, NewMessageBody.MAX_BODY_LENGTH * 0.9)
         else:
             text_storage = long_text
         link_p = mb.link
@@ -1673,9 +1641,9 @@ class TamTamBot(object):
     def get_chat_messages(self, chat_id, dt_end=None, dt_start=None, max_msg=1000):
         # type: (int, datetime, datetime, int or None) -> [Message]
         message_list = []
-        ut_start = datetime_to_unix_time(dt_start) if dt_start else None
+        ut_start = Utils.datetime_to_unix_time(dt_start) if dt_start else None
         dt_end = dt_end or datetime.now().astimezone() + timedelta(seconds=1)
-        ut_end = datetime_to_unix_time(dt_end)
+        ut_end = Utils.datetime_to_unix_time(dt_end)
         # [(_.timestamp, datetime_from_unix_time(_.timestamp)) for _ in m_l]
         while True:
             m_l = self.msg.get_messages(chat_id=chat_id, count=MessagesApi.MAX_MESSAGE_COUNT, _from=ut_end).messages

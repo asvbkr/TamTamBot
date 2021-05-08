@@ -3,7 +3,8 @@ import json
 import re
 from re import Match
 
-from TamTamBot.utils.utils import get_param_value, str_to_int, get_md5_hash_str
+from TamTamBot.cls.cmn import TtUtils
+from ttgb_cmn.cmn import Utils
 from openapi_client import Update, MessageCallbackUpdate, MessageLinkType, NewMessageLink, BotStartedUpdate, MessageCreatedUpdate, ChatType, User, Message, Recipient, Callback
 
 
@@ -48,16 +49,16 @@ class UpdateCmn(object):
                 if mid:
                     self.link = NewMessageLink(MessageLinkType.REPLY, mid)
             else:  # Для совместимости со старым форматом payload
-                cmd = get_param_value(update.callback.payload, 'cmd')
+                cmd = TtUtils.get_param_value(update.callback.payload, 'cmd')
                 if cmd:
                     self.cmd = cmd
-                mid = get_param_value(update.callback.payload, 'mid')
+                mid = TtUtils.get_param_value(update.callback.payload, 'mid')
                 if mid:
                     self.link = NewMessageLink(MessageLinkType.REPLY, mid)
-                fk = get_param_value(update.callback.payload, 'cmd_args')
+                fk = TtUtils.get_param_value(update.callback.payload, 'cmd_args')
                 if fk:
                     self.cmd_args = fk
-                    chat_id = str_to_int(fk)
+                    chat_id = Utils.str_to_int(fk)
                     if chat_id is not None:
                         self.cmd_args = {'chat_id': chat_id}
                     else:
@@ -157,5 +158,5 @@ class UpdateCmn(object):
     @staticmethod
     def get_callback_index(callback):
         # type: (Callback) -> str
-        ind = '%s#%s' % (callback.user.user_id, get_md5_hash_str(callback.payload))
+        ind = '%s#%s' % (callback.user.user_id, Utils.get_md5_hash_str(callback.payload))
         return ind

@@ -1,10 +1,9 @@
 # -*- coding: UTF-8 -*-
 import threading
 from time import sleep
-from typing import Optional, Callable, Any, Iterable, Mapping
 
-from TamTamBot.utils.utils import ExtList
 from openapi_client import ActionRequestBody, ChatsApi
+from ttgb_cmn.cmn import ExtList
 
 
 class ChatActionRequestRepeater(threading.Thread):
