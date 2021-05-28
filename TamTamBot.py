@@ -673,10 +673,10 @@ class TamTamBot(object):
                 link = update.link
         err = ''
         if exception:
-            err = traceback.format_exc()
+            err = "`%s`" % traceback.format_exc()
         res = False
         now = datetime.now()
-        text = ('%s(bot @%s): `%s' % (now, self.username, (text + err)))
+        text = ('%s(bot @%s): %s' % (now, self.username, (text + err)))
         text_add = ''
         if exception and update:
             text_add = ('`%s' % update.update_current)
