@@ -25,7 +25,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     UploadEndpoint, VideoAttachmentRequest, PhotoAttachmentRequest, AudioAttachmentRequest, \
     FileAttachmentRequest, Chat, BotInfo, BotCommand, BotPatch, ActionRequestBody, SenderAction, ChatAdminPermission, MessageList, Message, LinkedMessage, MessageBody, MessageLinkType, \
     GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer, UserWithPhoto, \
-    User
+    User, TextFormat
 from openapi_client.rest import ApiException, RESTResponse
 from ttgb_cmn.cmn import Utils, BotLogger
 from ttgb_cmn.lng import get_text as _, translation_activate
@@ -667,35 +667,38 @@ class TamTamBot(object):
 
     # noinspection DuplicatedCode
     def send_admin_message(self, text, update=None, exception=None, notify=True, link=None):
-        # type: (str, UpdateCmn, Exception, bool, NewMessageLink) -> bool
+        # type: (str, UpdateCmn, Exception, bool, NewMessageLink) -> []
         if not link:
             if isinstance(update, UpdateCmn):
                 link = update.link
         err = ''
         if exception:
-            err = "`%s`" % traceback.format_exc()
-        res = False
+            err = "\n<mark>%s</mark>: <pre>%s</pre>" % (exception.__class__.__name__, traceback.format_exc())
+        res = []
         now = datetime.now()
         text = ('%s(bot @%s): %s' % (now, self.username, (text + err)))
         text_add = ''
         if exception and update:
-            text_add = ('`%s' % update.update_current)
+            text_add = ('<pre>%s</pre>' % update.update_current)
         if self.admins_contacts:
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
                     try:
                         res_s = self.send_message_long_text(
-                            NewMessageBody(link=link, notify=notify),
+                            NewMessageBody(link=link, notify=notify, format=TextFormat.HTML),
                             text,
                             chat_id=el,
                         )
-                        if isinstance(res_s, SendMessageResult) and text_add:
-                            res = self.send_message_long_text(
-                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify),
+                        if res_s:
+                            res.extend(res_s)
+                        if res_s and isinstance(res_s[0], SendMessageResult) and text_add:
+                            res_s = self.send_message_long_text(
+                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s[0].message.body.mid), notify=notify, format=TextFormat.HTML),
                                 text_add,
                                 chat_id=el,
                             )
-                        res = res or res_s
+                            if res_s:
+                                res.extend(res_s)
                     except Exception as e:
                         self.lgz.exception(e)
 
@@ -703,17 +706,20 @@ class TamTamBot(object):
                 for el in self.admins_contacts.get('users'):
                     try:
                         res_s = self.send_message_long_text(
-                            NewMessageBody(link=link, notify=notify),
+                            NewMessageBody(link=link, notify=notify, format=TextFormat.HTML),
                             text,
                             user_id=el,
                         )
+                        if res_s:
+                            res.extend(res_s)
                         if isinstance(res_s, SendMessageResult) and text_add:
-                            res = self.send_message_long_text(
-                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify),
+                            res_s = self.send_message_long_text(
+                                NewMessageBody(link=NewMessageLink(MessageLinkType.REPLY, res_s.message.body.mid), notify=notify, format=TextFormat.HTML),
                                 text_add,
                                 user_id=el,
                             )
-                        res = res or res_s
+                            if res_s:
+                                res.extend(res_s)
                     except Exception as e:
                         self.lgz.exception(e)
 
