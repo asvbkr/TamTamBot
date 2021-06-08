@@ -464,7 +464,7 @@ class TamTamBot(object):
         if not update.this_cmd_response:  # Прямой вызов команды
             if not (hasattr(update.update_current, 'payload') and update.update_current.payload):
                 return bool(
-                    self.msg.send_message(NewMessageBody(self.about, link=update.link), chat_id=update.chat_id)
+                    self.msg.send_message(NewMessageBody(self.about, link=update.link, format=TextFormat.MARKDOWN), chat_id=update.chat_id)
                 )
         else:  # Текстовый ответ команде не предусмотрен
             pass
@@ -1590,7 +1590,7 @@ class TamTamBot(object):
             i += 1
             if i != 1:
                 mb.attachments = None
-            mb.text = text
+            mb.text = text.strip() if text is not None else None
             mb.link = link_p
             res = self.send_message(mb, max_retry, sl_time, **kwargs)
             if res:
