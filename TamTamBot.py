@@ -27,6 +27,7 @@ from openapi_client import Configuration, Update, ApiClient, SubscriptionsApi, M
     GetSubscriptionsResult, Subscription, SimpleQueryResult, SubscriptionRequestBody, MessageChatCreatedUpdate, MessageConstructionRequest, MessageConstructedUpdate, CallbackAnswer, UserWithPhoto, \
     User, TextFormat
 from openapi_client.rest import ApiException, RESTResponse
+from openapi_client.utl import OacUtils
 from ttgb_cmn.cmn import Utils, BotLogger
 from ttgb_cmn.lng import get_text as _, translation_activate
 from .cls import ChatExt, UpdateCmn, CallbackButtonCmd, ChatActionRequestRepeater
@@ -673,13 +674,13 @@ class TamTamBot(object):
                 link = update.link
         err = ''
         if exception:
-            err = "\n<mark>%s</mark>: <pre>%s</pre>" % (exception.__class__.__name__, traceback.format_exc())
+            err = "\n<mark>%s</mark>: <pre>%s</pre>" % (OacUtils.escape(exception.__class__.__name__), OacUtils.escape(traceback.format_exc()))
         res = []
         now = datetime.now()
-        text = ('%s(bot @%s): %s' % (now, self.username, (text + err)))
+        text = ('%s(bot @%s): %s' % (now, OacUtils.escape(self.username), (OacUtils.escape(text) + err)))
         text_add = ''
         if exception and update:
-            text_add = ('<pre>%s</pre>' % update.update_current)
+            text_add = ('<pre>%s</pre>' % OacUtils.escape(update.update_current))
         if self.admins_contacts:
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
