@@ -680,7 +680,7 @@ class TamTamBot(object):
         text = ('%s(bot @%s): %s' % (now, OacUtils.escape(self.username), (OacUtils.escape(text) + err)))
         text_add = ''
         if exception and update:
-            text_add = ('<pre>%s</pre>' % OacUtils.escape(update.update_current))
+            text_add = ('<pre>%s</pre>' % OacUtils.escape(str(update.update_current)))
         if self.admins_contacts:
             if self.admins_contacts.get('chats'):
                 for el in self.admins_contacts.get('chats'):
