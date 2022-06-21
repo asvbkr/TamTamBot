@@ -37,7 +37,7 @@ class TamTamBotException(Exception):
     pass
 
 
-# noinspection SqlNoDataSourceInspection
+# noinspection SqlNoDataSourceInspection,SqlDialectInspection,GrazieInspection
 class TamTamBot(object):
     _work_threads_max_count = None
     threads = []
@@ -1505,7 +1505,10 @@ class TamTamBot(object):
         # type: ([], str, str) -> dict
         upload_ep = self.upload.get_upload_url(type=upload_type)
         if isinstance(upload_ep, UploadEndpoint):
-            rdf = requests.post(upload_ep.url, files={'files': ('file' if not content_name else content_name, content, 'multipart/form-data')})
+            rdf = requests.post(
+                upload_ep.url, files={'files': ('file' if not content_name else content_name, content, 'multipart/form-data')},
+                verify=Utils.get_environ_bool('TT_BOT_UPLOAD_SSL_VERIFY'),
+            )
             if rdf.status_code == 200:
                 return rdf.json()
 
