@@ -1507,7 +1507,7 @@ class TamTamBot(object):
         if isinstance(upload_ep, UploadEndpoint):
             rdf = requests.post(
                 upload_ep.url, files={'files': ('file' if not content_name else content_name, content, 'multipart/form-data')},
-                verify=Utils.get_environ_bool('TT_BOT_UPLOAD_SSL_VERIFY'),
+                verify=Utils.get_environ_bool('TT_BOT_UPLOAD_SSL_VERIFY', True),
             )
             if rdf.status_code == 200:
                 return rdf.json()
