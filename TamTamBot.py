@@ -79,7 +79,7 @@ class TamTamBot(object):
         self._languages_dict = None
         self._admins_contacts = None
 
-        self.info = None
+        self.info = self.api.get_my_info()
         try:
             bp = BotPatch(commands=self.commands, description=self.description)
             self.info = self.api.edit_my_info(bp)
