@@ -667,8 +667,8 @@ class TamTamBot(object):
         return res
 
     # noinspection DuplicatedCode
-    def send_admin_message(self, text, update=None, exception=None, notify=True, link=None):
-        # type: (str, UpdateCmn, Exception, bool, NewMessageLink) -> []
+    def send_admin_message(self, text, update=None, exception=None, notify=True, link=None, text_escaped=False):
+        # type: (str, UpdateCmn, Exception, bool, NewMessageLink, bool) -> []
         if not link:
             if isinstance(update, UpdateCmn):
                 link = update.link
@@ -677,7 +677,9 @@ class TamTamBot(object):
             err = "\n<mark>%s</mark>: <pre>%s</pre>" % (OacUtils.escape(exception.__class__.__name__), OacUtils.escape(traceback.format_exc()))
         res = []
         now = datetime.now()
-        text = ('%s(bot @%s): %s' % (now, OacUtils.escape(self.username), (OacUtils.escape(text) + err)))
+        if not text_escaped:
+            text = OacUtils.escape(text)
+        text = ('%s(bot @%s): %s' % (now, OacUtils.escape(self.username), (text + err)))
         text_add = ''
         if exception and update:
             text_add = ('<pre>%s</pre>' % OacUtils.escape(str(update.update_current)))
