@@ -79,13 +79,16 @@ class TamTamBot(object):
         self._languages_dict = None
         self._admins_contacts = None
 
-        self.info = self.api.get_my_info()
         try:
-            bp = BotPatch(commands=self.commands, description=self.description)
-            self.info = self.api.edit_my_info(bp)
+            self.info = self.api.get_my_info()
+            try:
+                bp = BotPatch(commands=self.commands, description=self.description)
+                self.info = self.api.edit_my_info(bp)
+            except ApiException:
+                self.lgz.exception('ApiException')
         except ApiException:
             self.lgz.exception('ApiException')
-            pass
+            self.info = None
         if isinstance(self.info, BotInfo):
             self.user_id = self.info.user_id
             self.name = self.info.name
